@@ -105,17 +105,12 @@ function seedIfEmpty() {
     const vicActs = [
       {
         title: "Crimes Act 1958",
-        url: "https://www.legislation.vic.gov.au/html/in-force/act/100/1958/amends",
+        url: "https://www.legislation.vic.gov.au/in-force/act/crimes-act-1958",
         jurisdiction: "vic" as const,
       },
       {
-        title: "Health Practitioner Regulation National Law (Victoria)",
-        url: "https://www.legislation.vic.gov.au/html/in-force/act/324/2008/amends",
-        jurisdiction: "vic" as const,
-      },
-      {
-        title: "Occupiers Liability Act 1984",
-        url: "https://www.legislation.vic.gov.au/html/in-force/act/5763/1984/amends",
+        title: "Occupiers Liability Act 1983",
+        url: "https://www.legislation.vic.gov.au/in-force/act/occupiers-liability-act-1983",
         jurisdiction: "vic" as const,
       },
     ];
