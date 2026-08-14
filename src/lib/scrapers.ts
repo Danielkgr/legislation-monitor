@@ -53,7 +53,7 @@ async function scrapeFederal(url: string): Promise<ScraperResult> {
 
   // Try to extract version label from URL or page metadata
   const urlParts = url.split("/");
-  const versionLabel = extractVersionLabel(url, urlParts);
+  const versionLabel = extractVersionLabel(url);
 
   return {
     title: title || "Federal Act",

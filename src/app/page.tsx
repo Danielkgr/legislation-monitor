@@ -71,6 +71,12 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/docs" className="text-xs text-white/40 hover:text-white/80 transition-colors flex items-center gap-1" title="Open API documentation (Swagger UI)">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-3-3v6m-7 4h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              <span className="hidden sm:inline">API</span>
+            </Link>
             <CheckButton
               onClick={handleCheckAll}
               checking={checkingAll}

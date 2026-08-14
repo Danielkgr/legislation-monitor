@@ -115,27 +115,95 @@ Five Acts are seeded automatically on first run:
 
 ## API Reference
 
-### Acts
+### OpenAPI Specification
+
+A complete [OpenAPI 3.0](https://spec.openapis.org/oas/v3.0.3) specification is provided for programmatic consumption:
+
+| Format | URL |
+|---|---|
+| **Interactive Docs** | [`/docs`](http://localhost:3000/docs) — Swagger UI with try-it-out, code samples, and schema explorer |
+| **Raw Spec (JSON)** | [`/openapi.json`](http://localhost:3000/openapi.json) — Download or curl the specification directly |
+
+You can import the spec into [Postman](https://www.postman.com/), [Insomnia](https://insomnia.rest/), [Hoppscotch](https://hoppscotch.io/), or any other API tool for quick exploration.
+
+### Endpoint Summary
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/acts` | List all watched Acts with change summary |
-| `POST` | `/api/acts` | Add a new Act to watch |
+| `POST` | `/api/acts` | Add a new Act to watch (see schema below) |
 | `DELETE` | `/api/acts/:id` | Remove an Act from monitoring |
-
-### Per-Act
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/acts/:id` | Get Act details |
+| `GET` | `/api/acts/:id` | Get Act details and metadata |
 | `POST` | `/api/acts/:id/check` | Trigger an immediate scrape & comparison |
 | `GET` | `/api/acts/:id/versions` | List all stored versions for an Act |
+| `GET` | `/api/changes/:actId` | Get detected changes with summaries and affected groups |
 
-### Changes
+### Request / Response Schemas
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/changes/:actId` | Get a unified diff between two versions |
+<details>
+<summary><strong>Add Act</strong></summary>
+
+```jsonc
+// POST /api/acts
+{
+  "title": "My Act 2025",          // required — human-readable title
+  "url": "https://.../Details/C2025C00XXX",  // required — legislation URL
+  "jurisdiction": "federal"         // optional — "federal" (default) or "vic"
+}
+
+// Response 201 — Act created
+{
+  "id": 6,
+  "title": "My Act 2025",
+  "url": "...",
+  "jurisdiction": "federal",
+  "created_at": "2026-08-15T10:00:00Z",
+  "updated_at": "2026-08-15T10:00:00Z"
+}
+
+// Response 409 — Duplicate URL
+{ "error": "This Act is already being watched", "id": 1 }
+```
+</details>
+
+<details>
+<summary><strong>Check for Changes (POST /api/acts/:id/check)</strong></summary>
+
+```jsonc
+// Response 200 — Success
+{
+  "success": true,
+  "hasChange": false,    // true if a new version was detected
+  "change": null,        // change record when hasChange is true
+  "new_version_count": 12
+}
+```
+</details>
+
+<details>
+<summary><strong>List Changes (GET /api/changes/:actId)</strong></summary>
+
+```jsonc
+// Response 200 — Array of changes
+[
+  {
+    "id": 5,
+    "act_id": 1,
+    "detected_at": "2026-08-14T09:30:00Z",
+    "summary": "The Privacy Act 1988 has been amended (3 lines added, 1 line removed)",
+    "sections_changed": ["Added: \"Section 13G\""],
+    "affected_groups": ["Individuals & Data Subjects"],
+    "change_count": 4,
+    "from_label": null,
+    "to_label": "2026-08-14"
+  }
+]
+```
+</details>
+
+### Response Envelope
+
+Every endpoint returns JSON. Error responses use `{ "error": "message" }` with an appropriate HTTP status code (400, 404, 409, 500).
 
 ## Scrapers
 
@@ -166,6 +234,34 @@ npm run build     # Production build to .next/
 npm run start     # Run production build locally
 npm run lint      # ESLint check
 ```
+
+### Running as an External API Server
+
+The Legislation Monitor doubles as an API backend for external consumption. The OpenAPI specification is auto-generated from the codebase.
+
+**Development (local):**
+```bash
+npm install
+npm run dev
+# → Dashboard: http://localhost:3000
+# → Swagger UI docs:  http://localhost:3000/docs
+# → Raw spec (JSON):  http://localhost:3000/openapi.json
+```
+
+**Production (standalone):**
+```bash
+npm install
+npm run build
+npm start
+# API available at http://localhost:3000/api/*
+```
+
+The database (`legislation.db`) lives at `.data/legislation.db` within the working directory. Copy or mount it for persistent state across restarts.
+
+**Using the spec in other tools:**
+- **Postman**: `Import → Link` → paste `https://raw.githubusercontent.com/Danielkgr/legislation-monitor/main/public/openapi.json`
+- **Insomnia / Hoppscotch**: Import → OpenAPI → paste the same URL or local file path
+- **Code generation**: `npx @scarf/scarf --url https://raw.githubusercontent.com/Danielkgr/legislation-monitor/main/public/openapi.json --output ./src/api/generated` (or use [openapi-typescript](https://github.com/colinhacks/openapi-typescript))
 
 ## Configuration
 
