@@ -1,6 +1,6 @@
-# Legislation Monitor
-
 <div align="center">
+
+# Legislation Monitor
 
 Automated legislative change detection for Australian federal and Victorian state acts. Scans, compares, and surfaces what changed — so you don't have to read through every revision yourself.
 
