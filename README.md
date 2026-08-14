@@ -76,7 +76,7 @@ legislation-monitor/
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/legislation-monitor.git
+git clone https://github.com/Danielkgr/legislation-monitor.git
 cd legislation-monitor
 
 # Install dependencies
@@ -173,7 +173,7 @@ Edit `next.config.ts` for framework-level settings (rewrites, redirects, environ
 
 ```typescript
 // src/lib/scrapers.ts — change this to your own URL
-"User-Agent": "LegislationMonitor/1.0 (+https://github.com/your-org)"
+"User-Agent": "LegislationMonitor/1.0 (+https://github.com/Danielkgr/legislation-monitor)"
 ```
 
 ## Extending
