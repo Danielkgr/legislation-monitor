@@ -2,26 +2,39 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 
+interface DB {
+  exec(sql: string): void;
+  pragma(str: string): unknown;
+  prepare<T = Record<string, unknown>>(sql: string): Statement;
+}
+
+interface Statement {
+  get(...args: unknown[]): Record<string, unknown> | undefined;
+  all(...args: unknown[]): Record<string, unknown>[];
+  run(...args: unknown[]): { lastInsertRowid: number; changes: number };
+}
+
 const DB_DIR = path.join(process.cwd(), ".data");
 const DB_PATH = path.join(DB_DIR, "legislation.db");
 
 // Ensure data directory exists
 fs.mkdirSync(DB_DIR, { recursive: true });
 
-let db: Database.Database;
+let db: DB | null = null;
 
-function connectDB() {
+function connectDB(): DB {
   if (!db) {
-    db = new Database(DB_PATH);
+    db = new Database(DB_PATH) as unknown as DB;
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = on");
     initSchema();
+    seedIfEmpty();
   }
   return db;
 }
 
 function initSchema() {
-  db.exec(`
+  db!.exec(`
     CREATE TABLE IF NOT EXISTS acts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -65,9 +78,9 @@ function initSchema() {
 
 // Seed data — real Acts from both jurisdictions
 function seedIfEmpty() {
-  const count: { cnt: number } = db.prepare("SELECT COUNT(*) as cnt FROM acts").get() as unknown as { cnt: number };
+  const count: { cnt: number } = db!.prepare("SELECT COUNT(*) as cnt FROM acts").get() as unknown as { cnt: number };
   if (count.cnt === 0) {
-    const insert = db.prepare(
+    const insert = db!.prepare(
       `INSERT INTO acts (title, url, jurisdiction) VALUES (?, ?, ?)`
     );
 
@@ -145,7 +158,4 @@ export interface Change {
   change_count: number;
 }
 
-// --- Seed on first connect ---
-seedIfEmpty();
-
-export { connectDB, db as rawDB };
+export { connectDB };

@@ -1,4 +1,4 @@
-import { createTwoFilesPatch, parsePatch, Hunk } from "diff";
+import { createTwoFilesPatch } from "diff";
 
 export interface DiffResult {
   addedLines: number;

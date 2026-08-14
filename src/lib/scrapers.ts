@@ -35,7 +35,7 @@ async function scrapeFederal(url: string): Promise<ScraperResult> {
   // Extract title from page
   const title =
     $("h1").first().text().trim() ||
-    $("#page-title, .title").first().text().strip() ||
+    ($("#page-title, .title").first().text().trim()) ||
     "Federal Act";
 
   // Try to get the main content area
@@ -70,7 +70,7 @@ async function scrapeVictorian(url: string): Promise<ScraperResult> {
   // Extract title
   let title =
     $("h1").first().text().trim() ||
-    $(".page-title, h1.title").first().text().strip() ||
+    ($(".page-title, h1.title").first().text().trim()) ||
     "Victorian Act";
 
   // Get main content
