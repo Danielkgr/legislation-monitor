@@ -29,7 +29,7 @@ export default function ActCard({ act }: ActCardProps) {
     : "Never";
 
   return (
-    <div className="card-lift bg-white rounded-xl border border-card-border p-5 flex flex-col h-full">
+    <div className="card-lift bg-surface/70 rounded-xl border border-white/[0.06] p-5 flex flex-col h-full">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <h3 className="font-semibold text-sm leading-tight line-clamp-2 flex-1">{act.title}</h3>
@@ -64,7 +64,7 @@ export default function ActCard({ act }: ActCardProps) {
             <span className="font-medium">{act.recent_changes} amendment{act.recent_changes !== 1 ? "s" : ""} detected</span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-xs text-foreground/30 px-3 py-2 rounded-lg bg-surface">
+          <div className="flex items-center gap-2 text-xs text-foreground/30 px-3 py-2 rounded-lg bg-white/[0.03]">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>

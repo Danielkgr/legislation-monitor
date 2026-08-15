@@ -28,7 +28,7 @@ export default function DiffViewer({ oldText, newText, showContextLines = 3, max
   if (!hasChanges) {
     return (
       <div className="text-center py-8 text-sm text-foreground/40">
-        <svg className="w-8 h-8 mx-auto mb-2 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-8 h-8 mx-auto mb-2 text-vic" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
         No differences detected between these versions.
@@ -39,19 +39,19 @@ export default function DiffViewer({ oldText, newText, showContextLines = 3, max
   return (
     <div className="font-mono-custom text-xs overflow-hidden">
       {/* Legend */}
-      <div className="flex items-center gap-4 px-4 py-2 bg-surface border-b border-card-border text-[11px] text-foreground/50">
+      <div className="flex items-center gap-4 px-4 py-2 bg-white/[0.02] border-b border-white/[0.06] text-[11px] text-faint">
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded bg-green-100 border border-green-300 inline-block" />
+          <span className="w-3 h-3 rounded bg-vic/25 border border-vic/40 inline-block" />
           Added lines
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded bg-red-100 border border-red-300 inline-block" />
+          <span className="w-3 h-3 rounded bg-danger/25 border border-danger/40 inline-block" />
           Removed lines
         </span>
       </div>
 
       {/* Diff content - side by side */}
-      <div className="grid grid-cols-2 divide-x divide-card-border max-h-[500px] overflow-auto">
+      <div className="grid grid-cols-2 divide-x divide-white/[0.06] max-h-[500px] overflow-auto">
         {/* Left (old) */}
         <div className="overflow-auto max-h-[500px]">
           {diffLines.map((line, i) => (
@@ -93,7 +93,7 @@ function DiffLineRow({
 
   if (line.type === "unchanged") {
     return (
-      <div className="flex hover:bg-surface transition-colors">
+      <div className="flex hover:bg-white/[0.04] transition-colors">
         {showNumber && (
           <span className="diff-line-number">{isLeft ? line.oldLine : line.newLine}</span>
         )}
@@ -104,7 +104,7 @@ function DiffLineRow({
   }
 
   return (
-    <div className={`flex ${isLeft ? `diff-${line.type}` : line.type === "added" ? "bg-white" : `diff-${line.type}`} transition-colors`}>
+    <div className={`flex ${isLeft ? `diff-${line.type}` : line.type === "added" ? "bg-transparent" : `diff-${line.type}`} transition-colors`}>
       {showNumber && (
         <span className="diff-line-number">
           {isLeft ? line.oldLine : line.newLine}

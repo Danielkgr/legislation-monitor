@@ -1,48 +1,78 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --sidebar-bg: #0f172a;
-  --sidebar-hover: #1e293b;
-  --card-border: #e2e8f0;
-  --accent-blue: #2563eb;
-  --accent-green: #059669;
-  --accent-amber: #d97706;
-  --added-bg: #dcfce7;
-  --added-text: #166534;
-  --removed-bg: #fee2e2;
-  --removed-text: #991b1b;
+/* ─────────────────────────────────────────────────────────────
+   Design tokens — "Unsloth" dark theme
+   Layered navy-charcoal surfaces, hairline light borders,
+   one electric accent, high-contrast semantic colors.
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  /* Surfaces (lightest → darkest) */
+  --color-surface-2: #1a1f2c; /* raised fills, hover states */
+  --color-surface: #12151e; /* cards & panels */
+  --color-bg-dark: #0d1017; /* chrome: header / modal bars */
+  --color-background: #0a0c12; /* app canvas */
+  --color-card-border: #232939; /* hairline borders */
+
+  /* Text */
+  --color-foreground: #e7eaf2; /* off-white */
+  --color-muted: #98a2b8; /* secondary */
+  --color-faint: #5f6879; /* tertiary */
+
+  /* Accent — electric violet (swap this token to re-theme) */
+  --color-accent: #7c5cfc;
+  --color-accent-light: #9d85ff;
+  --color-primary: var(--color-accent);
+
+  /* Semantic */
+  --color-federal: #60a5fa; /* Federal jurisdiction */
+  --color-vic: #34d399; /* Victorian jurisdiction */
+  --color-accent-amber: #fbbf24; /* changes detected */
+  --color-danger: #f87171;
+  --color-success: #34d399;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-mono);
+  --font-mono-custom: var(--font-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background:
+    radial-gradient(1100px 540px at 80% -12%, rgba(124, 92, 252, 0.08), transparent 65%),
+    radial-gradient(900px 480px at -8% 4%, rgba(96, 165, 250, 0.05), transparent 60%),
+    var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(124, 92, 252, 0.35);
+  color: #fff;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-thumb { background: #2a3143; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3b4459; }
+
+/* Dark dropdown lists for <select> */
+select option {
+  background-color: var(--color-surface);
+  color: var(--color-foreground);
+}
 
 /* Diff viewer styles */
 .diff-added {
-  background-color: var(--added-bg);
-  color: var(--added-text);
+  background-color: rgba(52, 211, 153, 0.09);
+  color: #a7e8cd;
 }
 
 .diff-removed {
-  background-color: var(--removed-bg);
-  color: var(--removed-text);
+  background-color: rgba(248, 113, 113, 0.09);
+  color: #fca5a5;
 }
 
 .diff-line-number {
@@ -51,10 +81,10 @@ body {
   text-align: right;
   padding-right: 0.5rem;
   margin-right: 0.5rem;
-  color: #94a3b8;
+  color: var(--color-faint);
   user-select: none;
   font-variant-numeric: tabular-nums;
-  border-right: 1px solid rgba(0,0,0,0.06);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .diff-line-marker {
@@ -65,8 +95,8 @@ body {
   flex-shrink: 0;
 }
 
-.diff-added .diff-line-marker { color: #16a34a; }
-.diff-removed .diff-line-marker { color: #dc2626; }
+.diff-added .diff-line-marker { color: var(--color-vic); }
+.diff-removed .diff-line-marker { color: var(--color-danger); }
 
 /* Animations */
 @keyframes fadeInUp {
@@ -98,33 +128,36 @@ body {
   animation: pulse-ring 1.2s ease-out infinite;
 }
 
-/* Card hover */
+/* Card hover — lift + accent border glow */
 .card-lift {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 .card-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.12), 0 4px 12px -4px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  border-color: rgba(124, 92, 252, 0.35);
+  box-shadow:
+    0 16px 40px -16px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(124, 92, 252, 0.08);
 }
 
 /* Skeleton loader */
 .skeleton {
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background: linear-gradient(90deg, #191d29 25%, #232a3b 50%, #191d29 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
 /* Badge styles */
 .badge-federal {
-  background-color: #dbeafe;
-  color: #1e40af;
-  border: 1px solid #93c5fd;
+  background-color: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+  border: 1px solid rgba(96, 165, 250, 0.3);
 }
 
 .badge-vic {
-  background-color: #d1fae5;
-  color: #065f46;
-  border: 1px solid #6ee7b7;
+  background-color: rgba(52, 211, 153, 0.12);
+  color: #6ee7b7;
+  border: 1px solid rgba(52, 211, 153, 0.3);
 }
 
 /* Sidebar nav */
@@ -132,17 +165,17 @@ body {
   transition: all 0.15s ease;
 }
 .sidebar-link:hover {
-  background-color: var(--sidebar-hover);
+  background-color: rgba(255, 255, 255, 0.05);
 }
 .sidebar-link.active {
-  background-color: rgba(255,255,255,0.12);
-  border-left: 3px solid #c9a227;
+  background-color: rgba(124, 92, 252, 0.14);
+  border-left: 3px solid var(--color-accent);
 }
 
 /* Modal overlay */
 .modal-overlay {
-  background-color: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(4px);
+  background-color: rgba(5, 7, 12, 0.72);
+  backdrop-filter: blur(10px);
 }
 
 /* Print styles for reports */

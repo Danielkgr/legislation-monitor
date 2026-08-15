@@ -59,10 +59,10 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="bg-bg-dark text-white sticky top-0 z-50 border-b border-white/10 no-print">
+      <header className="bg-background/75 backdrop-blur-xl sticky top-0 z-50 border-b border-white/[0.06] no-print">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center font-bold text-bg-dark text-sm">
+            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center font-bold text-white text-sm shadow-[0_0_20px_-4px_rgba(124,92,252,0.8)]">
               LM
             </div>
             <div>
@@ -71,7 +71,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/docs" className="text-xs text-white/40 hover:text-white/80 transition-colors flex items-center gap-1" title="Open API documentation (Swagger UI)">
+            <Link href="/docs" className="text-xs text-faint hover:text-foreground transition-colors flex items-center gap-1" title="Open API documentation (Swagger UI)">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-3-3v6m-7 4h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
               </svg>
@@ -84,7 +84,7 @@ export default function Dashboard() {
             />
             <button
               onClick={() => setShowAddForm(true)}
-              className="bg-accent hover:bg-accent-light text-bg-dark font-medium px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-1.5"
+              className="bg-accent hover:bg-accent-light text-white font-medium px-4 py-2 rounded-lg text-sm transition-all hover:shadow-[0_0_22px_-4px_rgba(124,92,252,0.8)] flex items-center gap-1.5"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -97,22 +97,22 @@ export default function Dashboard() {
 
       {/* Stats Bar */}
       {acts.length > 0 && !loading && (
-        <div className="bg-white border-b border-card-border">
+        <div className="bg-background/60 backdrop-blur-xl border-b border-white/[0.06]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex flex-wrap items-center gap-6 text-sm">
-              <div className="flex items-center gap-2 text-foreground/70">
+              <div className="flex items-center gap-2 text-muted">
                 <span className="w-2 h-2 rounded-full bg-federal" />
                 <span>{federalCount} Federal</span>
               </div>
-              <div className="flex items-center gap-2 text-foreground/70">
+              <div className="flex items-center gap-2 text-muted">
                 <span className="w-2 h-2 rounded-full bg-vic" />
                 <span>{vicCount} Victorian</span>
               </div>
-              <div className="flex items-center gap-2 text-foreground/70">
+              <div className="flex items-center gap-2 text-muted">
                 <span className="w-2 h-2 rounded-full bg-accent" />
                 <span>{totalChanges} change{totalChanges !== 1 ? "s" : ""} this week</span>
               </div>
-              <div className="flex items-center gap-2 text-foreground/70 ml-auto">
+              <div className="flex items-center gap-2 text-muted ml-auto">
                 <svg className="w-4 h-4 text-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" />
                 </svg>
@@ -128,7 +128,7 @@ export default function Dashboard() {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="bg-white rounded-xl border border-card-border p-5 animate-pulse">
+              <div key={i} className="bg-surface/70 rounded-xl border border-white/[0.06] p-5 animate-pulse">
                 <div className="h-5 skeleton w-3/4 mb-3 rounded" />
                 <div className="h-3.5 skeleton w-full mb-2 rounded" />
                 <div className="h-3.5 skeleton w-1/2 mb-4 rounded" />
@@ -141,7 +141,7 @@ export default function Dashboard() {
           </div>
         ) : acts.length === 0 ? (
           <div className="text-center py-24">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-surface flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-surface border border-white/[0.06] flex items-center justify-center">
               <svg className="w-8 h-8 text-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
@@ -152,7 +152,7 @@ export default function Dashboard() {
             </p>
             <button
               onClick={() => setShowAddForm(true)}
-              className="bg-accent hover:bg-accent-light text-bg-dark font-medium px-6 py-2.5 rounded-lg text-sm inline-flex items-center gap-2 transition-colors"
+              className="bg-accent hover:bg-accent-light text-white font-medium px-6 py-2.5 rounded-lg text-sm inline-flex items-center gap-2 transition-all hover:shadow-[0_0_22px_-4px_rgba(124,92,252,0.8)]"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -165,7 +165,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold">Watched Legislation</h2>
               {totalChanges > 0 && (
-                <span className="bg-accent/10 text-accent-amber px-3 py-1 rounded-full text-sm font-medium animate-fade-in inline-flex items-center gap-1.5">
+                <span className="bg-accent-amber/10 text-accent-amber px-3 py-1 rounded-full text-sm font-medium animate-fade-in inline-flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent-amber animate-pulse" />
                   {totalChanges} new change{totalChanges !== 1 ? "s" : ""} this week
                 </span>
@@ -186,7 +186,7 @@ export default function Dashboard() {
             <div className="mt-4 flex justify-center">
               <button
                 onClick={() => setShowAddForm(true)}
-                className="w-full max-w-md py-3 border-2 border-dashed border-card-border rounded-xl text-sm text-foreground/40 hover:border-accent hover:text-accent transition-colors flex items-center justify-center gap-2"
+                className="w-full max-w-md py-3 border border-dashed border-white/10 rounded-xl text-sm text-faint hover:border-accent/60 hover:text-accent transition-colors flex items-center justify-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -205,12 +205,12 @@ export default function Dashboard() {
             className="modal-overlay absolute inset-0"
             onClick={() => setShowAddForm(false)}
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-fade-in z-10 overflow-hidden">
-            <div className="bg-bg-dark text-white px-6 py-4 flex items-center justify-between">
+          <div className="relative bg-surface border border-white/[0.08] rounded-2xl shadow-[0_24px_80px_-24px_rgba(0,0,0,0.8)] w-full max-w-lg animate-fade-in z-10 overflow-hidden">
+            <div className="bg-white/[0.03] border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Watch New Legislation</h2>
               <button
                 onClick={() => setShowAddForm(false)}
-                className="text-white/60 hover:text-white transition-colors"
+                className="text-muted hover:text-foreground transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -223,15 +223,15 @@ export default function Dashboard() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-card-border mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-foreground/40">
+      <footer className="border-t border-white/[0.06] mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-faint">
           <p>Legislation Monitor — Automated legislative change detection</p>
           <div className="flex items-center gap-4">
-            <a href="https://www.legislation.gov.au" target="_blank" rel="noopener noreferrer" className="hover:text-foreground/70 transition-colors">
+            <a href="https://www.legislation.gov.au" target="_blank" rel="noopener noreferrer" className="hover:text-muted transition-colors">
               Federal Register of Legislation
             </a>
             <span>·</span>
-            <a href="https://www.legislation.vic.gov.au" target="_blank" rel="noopener noreferrer" className="hover:text-foreground/70 transition-colors">
+            <a href="https://www.legislation.vic.gov.au" target="_blank" rel="noopener noreferrer" className="hover:text-muted transition-colors">
               Victorian Legislation
             </a>
           </div>

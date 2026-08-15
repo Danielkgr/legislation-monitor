@@ -70,9 +70,9 @@ export default function AddActForm({ onSuccess, onCancel }: AddActFormProps) {
               className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-all ${
                 jurisdiction === j
                   ? j === "federal"
-                    ? "bg-blue-50 border-blue-300 text-blue-700"
-                    : "bg-green-50 border-green-300 text-green-700"
-                  : "border-card-border text-foreground/50 hover:border-foreground/20"
+                    ? "bg-federal/15 border-federal/40 text-federal"
+                    : "bg-vic/15 border-vic/40 text-vic"
+                  : "border-white/10 text-faint hover:border-white/25 hover:text-muted"
               }`}
             >
               {j === "federal" ? "🏛️ Federal" : "🟢 Victoria"}
@@ -93,7 +93,7 @@ export default function AddActForm({ onSuccess, onCancel }: AddActFormProps) {
                 setTitle(p.title);
                 setUrl(p.url);
               }}
-              className="text-xs px-3 py-1.5 rounded-lg border border-card-border text-foreground/60 hover:border-accent hover:text-accent transition-colors bg-surface truncate max-w-[200px]"
+              className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-muted hover:border-accent/60 hover:text-accent transition-colors bg-background/50 truncate max-w-[200px]"
             >
               {p.title}
             </button>
@@ -112,7 +112,7 @@ export default function AddActForm({ onSuccess, onCancel }: AddActFormProps) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={`e.g., Privacy Act 1988`}
-          className="w-full px-3 py-2.5 border border-card-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+          className="w-full px-3 py-2.5 border border-white/10 bg-background/50 rounded-lg text-sm placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/60 transition-all"
           required
         />
       </div>
@@ -128,14 +128,14 @@ export default function AddActForm({ onSuccess, onCancel }: AddActFormProps) {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder={`https://www.legislation.gov.au/Details/C2024C00001`}
-          className="w-full px-3 py-2.5 border border-card-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+          className="w-full px-3 py-2.5 border border-white/10 bg-background/50 rounded-lg text-sm font-mono placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/60 transition-all"
           required
         />
       </div>
 
       {/* Error */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-4 p-3 bg-danger/10 border border-danger/25 rounded-lg text-sm text-danger">
           {error}
         </div>
       )}
@@ -146,14 +146,14 @@ export default function AddActForm({ onSuccess, onCancel }: AddActFormProps) {
           type="button"
           onClick={onCancel}
           disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-foreground/60 hover:text-foreground transition-colors"
+          className="px-4 py-2 text-sm font-medium text-faint hover:text-foreground transition-colors"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={loading || !title.trim() || !url.trim()}
-          className="bg-accent hover:bg-accent-light disabled:opacity-50 disabled:cursor-not-allowed text-bg-dark font-medium px-6 py-2 rounded-lg text-sm transition-colors"
+          className="bg-accent hover:bg-accent-light disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-6 py-2 rounded-lg text-sm transition-all hover:shadow-[0_0_22px_-4px_rgba(124,92,252,0.8)]"
         >
           {loading ? (
             <span className="inline-flex items-center gap-2">

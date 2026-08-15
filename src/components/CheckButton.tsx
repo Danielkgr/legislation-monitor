@@ -16,7 +16,7 @@ export default function CheckButton({ onClick, checking = false, disabled = fals
     <button
       onClick={onClick}
       disabled={disabled || checking}
-      className={`${sizeClasses[size]} bg-surface hover:bg-card-border/40 disabled:opacity-50 disabled:cursor-not-allowed text-foreground/70 hover:text-foreground border border-card-border rounded-lg transition-all flex items-center ${checking ? "status-checking relative" : ""}`}
+      className={`${sizeClasses[size]} bg-surface-2/70 hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed text-foreground/70 hover:text-foreground border border-white/[0.08] rounded-lg transition-all flex items-center ${checking ? "status-checking relative" : ""}`}
     >
       {checking ? (
         <>

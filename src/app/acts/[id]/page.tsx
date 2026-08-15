@@ -126,7 +126,7 @@ export default function ActDetail() {
         <div className="h-4 skeleton w-1/2 mb-8 rounded" />
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-32 bg-white rounded-xl border border-card-border p-5">
+            <div key={i} className="h-32 bg-surface/60 rounded-xl border border-white/[0.06] p-5">
               <div className="h-5 skeleton w-1/3 mb-3 rounded" />
               <div className="h-3.5 skeleton w-full mb-2 rounded" />
               <div className="h-3.5 skeleton w-2/3 rounded" />
@@ -188,7 +188,7 @@ export default function ActDetail() {
               href={act.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-2 text-foreground/40 hover:text-foreground transition-colors rounded-lg hover:bg-surface"
+              className="p-2 text-faint hover:text-foreground transition-colors rounded-lg hover:bg-white/[0.06]"
               title="View on legislation site"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -198,7 +198,7 @@ export default function ActDetail() {
             <button
               onClick={handleDelete}
               disabled={deleting}
-              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors rounded-lg"
+              className="p-2 text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors rounded-lg"
               title="Remove from watch list"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -241,12 +241,12 @@ export default function ActDetail() {
         ) : (
           <>
             {/* Comparison controls */}
-            <div className="flex flex-wrap items-center gap-3 mb-4 p-4 bg-white rounded-xl border border-card-border">
+            <div className="flex flex-wrap items-center gap-3 mb-4 p-4 bg-surface/70 rounded-xl border border-white/[0.06]">
               <span className="text-sm font-medium text-foreground/60">Compare versions:</span>
               <select
                 value={selectedVersionA || ""}
                 onChange={(e) => setSelectedVersionA(e.target.value ? parseInt(e.target.value, 10) : null)}
-                className="px-3 py-1.5 border border-card-border rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-accent/30"
+                className="px-3 py-1.5 border border-white/10 bg-background/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/60"
               >
                 <option value="">Select version...</option>
                 {versions.map((v) => (
@@ -259,7 +259,7 @@ export default function ActDetail() {
               <select
                 value={selectedVersionB || ""}
                 onChange={(e) => setSelectedVersionB(e.target.value ? parseInt(e.target.value, 10) : null)}
-                className="px-3 py-1.5 border border-card-border rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-accent/30"
+                className="px-3 py-1.5 border border-white/10 bg-background/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/60"
               >
                 <option value="">Select version...</option>
                 {versions.map((v) => (
@@ -271,7 +271,7 @@ export default function ActDetail() {
               <button
                 onClick={handleCompare}
                 disabled={!selectedVersionA || !selectedVersionB}
-                className="ml-auto px-4 py-1.5 bg-accent hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed text-bg-dark font-medium rounded-lg text-sm transition-colors"
+                className="ml-auto px-4 py-1.5 bg-accent hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-lg text-sm transition-all hover:shadow-[0_0_22px_-4px_rgba(124,92,252,0.8)]"
               >
                 Show Diff
               </button>
@@ -320,7 +320,7 @@ function ChangeCard({ change, versionMap, actTitle }: {
     : "";
 
   return (
-    <div className="bg-white rounded-xl border border-card-border p-5 card-lift">
+    <div className="bg-surface/70 rounded-xl border border-white/[0.06] p-5 card-lift">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs text-foreground/40 font-mono">{change.detected_at.slice(0, 10)}</span>
@@ -340,7 +340,7 @@ function ChangeCard({ change, versionMap, actTitle }: {
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <span className="text-xs text-foreground/40 font-medium">Affects:</span>
           {change.affected_groups.map((group) => (
-            <span key={group} className="px-2 py-0.5 bg-surface border border-card-border rounded-md text-xs text-foreground/60">
+            <span key={group} className="px-2 py-0.5 bg-background/50 border border-white/[0.06] rounded-md text-xs text-muted">
               {group}
             </span>
           ))}
@@ -355,7 +355,7 @@ function ChangeCard({ change, versionMap, actTitle }: {
           </summary>
           <div className="mt-2 space-y-1 max-h-40 overflow-auto">
             {change.sections_changed.map((section, i) => (
-              <p key={i} className="text-xs font-mono text-foreground/50 px-3 py-1.5 bg-surface rounded-md border-l-2 border-accent/30">
+              <p key={i} className="text-xs font-mono text-foreground/50 px-3 py-1.5 bg-background/50 rounded-md border-l-2 border-accent/40">
                 {truncate(section, 120)}
               </p>
             ))}
@@ -384,10 +384,10 @@ function VersionItem({
   const isLatest = index === 0;
 
   return (
-    <div className={`flex items-center gap-4 p-4 bg-white rounded-xl border transition-colors ${isLatest ? "border-green-200 bg-green-50/30" : "border-card-border hover:border-foreground/15"}`}>
+    <div className={`flex items-center gap-4 p-4 bg-surface/70 rounded-xl border transition-colors ${isLatest ? "border-vic/25 bg-vic/[0.04]" : "border-white/[0.06] hover:border-white/15"}`}>
       {/* Timeline dot */}
       <div className="flex flex-col items-center shrink-0">
-        <div className={`w-3 h-3 rounded-full border-2 ${isLatest ? "bg-green-500 border-green-500" : "bg-white border-foreground/20"} ${isSelectedA || isSelectedB ? "ring-2 ring-accent/30 scale-125" : ""}`} />
+        <div className={`w-3 h-3 rounded-full border-2 ${isLatest ? "bg-vic border-vic" : "bg-surface-2 border-white/20"} ${isSelectedA || isSelectedB ? "ring-2 ring-accent/30 scale-125" : ""}`} />
         {index < 4 && <div className="w-px h-6 bg-foreground/10 mt-1" />}
       </div>
 
@@ -396,7 +396,7 @@ function VersionItem({
         <div className="flex items-center gap-2 flex-wrap mb-1">
           <span className="text-sm font-medium truncate">{version.version_label || `Version #${version.id}`}</span>
           {isLatest && (
-            <span className="inline-flex items-center px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium">
+            <span className="inline-flex items-center px-1.5 py-0.5 bg-vic/15 text-vic rounded text-[10px] font-medium">
               Current
             </span>
           )}
@@ -414,14 +414,14 @@ function VersionItem({
         <button
           onClick={onSelectA}
           title="Set as version A (from)"
-          className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center transition-all ${isSelectedA ? "bg-blue-100 text-blue-700 border-blue-300" : "border border-card-border text-foreground/30 hover:text-foreground/60 hover:border-foreground/20"}`}
+          className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center transition-all ${isSelectedA ? "bg-accent/20 text-accent border-accent/40" : "border border-white/10 text-faint hover:text-muted hover:border-white/25"}`}
         >
           A
         </button>
         <button
           onClick={onSelectB}
           title="Set as version B (new)"
-          className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center transition-all ${isSelectedB ? "bg-blue-100 text-blue-700 border-blue-300" : "border border-card-border text-foreground/30 hover:text-foreground/60 hover:border-foreground/20"}`}
+          className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center transition-all ${isSelectedB ? "bg-accent/20 text-accent border-accent/40" : "border border-white/10 text-faint hover:text-muted hover:border-white/25"}`}
         >
           B
         </button>
@@ -444,17 +444,17 @@ function DiffModal({ versionA, versionB, onClose }: {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
         <div className="modal-overlay absolute inset-0" onClick={onClose} />
-        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden animate-fade-in z-10">
-          <div className="bg-bg-dark text-white px-6 py-4 flex items-center justify-between">
+        <div className="relative bg-surface border border-white/[0.08] rounded-2xl shadow-[0_24px_80px_-24px_rgba(0,0,0,0.8)] w-full max-w-4xl max-h-[80vh] overflow-hidden animate-fade-in z-10">
+          <div className="bg-white/[0.03] border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">No Differences</h2>
-            <button onClick={onClose} className="text-white/60 hover:text-white">
+            <button onClick={onClose} className="text-muted hover:text-foreground">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
           <div className="p-8 text-center">
-            <svg className="w-12 h-12 mx-auto mb-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-12 h-12 mx-auto mb-3 text-vic" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
             </svg>
             <p className="text-foreground/50">The content of these two versions is identical.</p>
@@ -467,14 +467,14 @@ function DiffModal({ versionA, versionB, onClose }: {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="modal-overlay absolute inset-0" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] overflow-hidden animate-fade-in z-10 flex flex-col">
+      <div className="relative bg-surface border border-white/[0.08] rounded-2xl shadow-[0_24px_80px_-24px_rgba(0,0,0,0.8)] w-full max-w-5xl max-h-[85vh] overflow-hidden animate-fade-in z-10 flex flex-col">
         {/* Header */}
-        <div className="bg-bg-dark text-white px-6 py-4 flex items-center justify-between shrink-0">
+        <div className="bg-white/[0.03] border-b border-white/[0.06] px-6 py-4 flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-lg font-semibold">Diff: {versionA.version_label || `v${versionA.id}`} → {versionB.version_label || `v${versionB.id}`}</h2>
-            <p className="text-xs text-white/50 mt-0.5">{new Date(versionA.fetched_at).toLocaleDateString("en-AU")} → {new Date(versionB.fetched_at).toLocaleDateString("en-AU")}</p>
+            <p className="text-xs text-foreground/40 mt-0.5">{new Date(versionA.fetched_at).toLocaleDateString("en-AU")} → {new Date(versionB.fetched_at).toLocaleDateString("en-AU")}</p>
           </div>
-          <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-muted hover:text-foreground transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
