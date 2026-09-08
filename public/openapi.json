@@ -1,383 +1,805 @@
-openapi: "3.0.3"
-info:
-  title: Legislation Monitor API
-  description: |
-    Automated legislative change detection for Australian federal and Victorian Acts of Parliament.
-    Monitor legislation for amendments, repeals, and insertions by scraping official registers,
-    comparing content via hashing, and surfacing structured diffs.
-
-    ## Quick Start
-
-    1. Install & start the server:
-       ```bash
-       npm install
-       npm run dev
-       ```
-    2. Base URL: `http://localhost:3000`
-    3. Open this file at `/api/openapi.json` for interactive Swagger UI access.
-
-    ## Architecture
-
-    - **Database**: SQLite with WAL mode (stored in `.data/legislation.db`)
-    - **Scrapers**: Cheerio-based HTML parsers for federal and Victorian legislation sites
-    - **Change detection**: Content hashing + unified diff analysis
-    - **Auto-seed**: 5 Acts are seeded on first run (3 federal, 2 Victorian)
-
-  version: "0.1.0"
-  contact:
-    name: Danielkgr
-    url: https://github.com/Danielkgr/legislation-monitor
-  license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
-
-servers:
-  - url: http://localhost:3000
-    description: Local development server
-
-# ======================== PATHS ========================
-
-paths:
-  # ---------- Acts Collection ----------
-  /api/acts:
-    get:
-      summary: List all watched Acts
-      description: Returns every Act being monitored, enriched with version counts, last-checked timestamp, and recent change totals (last 7 days).
-      operationId: listActs
-      tags:
-        - Acts
-      responses:
-        "200":
-          description: A list of Acts
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ActSummary"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-    post:
-      summary: Add a new Act to watch
-      description: Creates a new Act entry and immediately triggers an initial scrape to capture the baseline version.
-      operationId: addAct
-      tags:
-        - Acts
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AddActRequest"
-            example:
-              title: "My Act 2025"
-              url: "https://www.legislation.gov.au/Details/C2025C00XXX"
-              jurisdiction: "federal"
-      responses:
-        "201":
-          description: Act created with baseline version captured
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Act"
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              example:
-                error: "Title and URL are required"
-        "409":
-          description: Act with this URL already exists
-          content:
-            application/json:
-              example:
-                error: "This Act is already being watched"
-                id: 1
-
-  # ---------- Single Act ----------
-  /api/acts/{id}:
-    get:
-      summary: Get Act details
-      description: Returns full metadata for a specific Act, including version count and recent change statistics.
-      operationId: getAct
-      tags:
-        - Acts
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: The numeric ID of the Act
-      responses:
-        "200":
-          description: Act details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Act"
-        "404":
-          description: Act not found
-          content:
-            application/json:
-              example:
-                error: "Act not found"
-
-    delete:
-      summary: Remove an Act from monitoring
-      operationId: deleteAct
-      tags:
-        - Acts
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: The numeric ID of the Act to remove
-      responses:
-        "200":
-          description: Act removed successfully
-          content:
-            application/json:
-              example:
-                success: true
-        "500":
-          description: Server error
-
-  # ---------- Check for Changes ----------
-  /api/acts/{id}/check:
-    post:
-      summary: Trigger an immediate scrape and comparison
-      description: Fetches the current version of the Act from its source, compares it against the last known version, and records any detected changes.
-      operationId: checkAct
-      tags:
-        - Acts
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: The numeric ID of the Act to check
-      responses:
-        "200":
-          description: Check completed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CheckResult"
-        "404":
-          description: Act not found
-        "500":
-          description: Server error
-
-  # ---------- Versions ----------
-  /api/acts/{id}/versions:
-    get:
-      summary: List all stored versions for an Act
-      description: Returns every captured snapshot of the Act's text, ordered newest-first with version labels and fetch timestamps.
-      operationId: listVersions
-      tags:
-        - Acts
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: The numeric ID of the Act
-      responses:
-        "200":
-          description: List of versions
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Version"
-        "500":
-          description: Server error
-
-  # ---------- Changes ----------
-  /api/changes/{actId}:
-    get:
-      summary: Get detected changes for an Act
-      description: Returns a list of all change records, each with a human-readable summary, affected sections, impacted groups, and line counts.
-      operationId: getChanges
-      tags:
-        - Changes
-      parameters:
-        - name: actId
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: The numeric ID of the Act
-      responses:
-        "200":
-          description: List of changes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Change"
-        "500":
-          description: Server error
-
-# ======================== COMPONENTS ========================
-
-components:
-  schemas:
-    # ---- Act ----
-    ActSummary:
-      allOf:
-        - $ref: "#/components/schemas/Act"
-        - properties:
-            version_count:
-              type: integer
-              description: Total number of captured versions
-            last_checked:
-              type: string
-              format: date-time
-              description: Timestamp of the most recent fetch
-            recent_changes:
-              type: integer
-              description: Number of detected changes in the last 7 days
-
-    Act:
-      type: object
-      required:
-        - id
-        - title
-        - url
-        - jurisdiction
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        title:
-          type: string
-        url:
-          type: string
-          format: uri
-        jurisdiction:
-          type: string
-          enum: [federal, vic]
-          description: Jurisdiction — "federal" (Australian) or "vic" (Victorian state)
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    AddActRequest:
-      type: object
-      required:
-        - title
-        - url
-      properties:
-        title:
-          type: string
-          description: Human-readable title of the Act
-        url:
-          type: string
-          format: uri
-          description: Direct URL to the legislation page
-        jurisdiction:
-          type: string
-          enum: [federal, vic]
-          default: federal
-
-    # ---- Version ----
-    Version:
-      type: object
-      properties:
-        id:
-          type: integer
-        act_id:
-          type: integer
-        fetched_at:
-          type: string
-          format: date-time
-        version_label:
-          type: string
-          nullable: true
-        content_hash:
-          type: string
-          description: CRC32-style content hash for change detection
-        plain_text:
-          type: string
-          nullable: true
-        source_url:
-          type: string
-          nullable: true
-
-    # ---- Change ----
-    Change:
-      type: object
-      properties:
-        id:
-          type: integer
-        act_id:
-          type: integer
-        version_from_id:
-          type: integer
-          nullable: true
-        version_to_id:
-          type: integer
-        detected_at:
-          type: string
-          format: date-time
-        summary:
-          type: string
-          description: Human-readable change summary
-        sections_changed:
-          type: array
-          items:
-            type: string
-        affected_groups:
-          type: array
-          items:
-            type: string
-          description: Groups likely impacted by these changes
-        change_count:
-          type: integer
-          description: Total added + removed lines
-
-    # ---- Check Result ----
-    CheckResult:
-      type: object
-      properties:
-        success:
-          type: boolean
-        hasChange:
-          type: boolean
-          description: Whether a new version was detected
-        change:
-          $ref: "#/components/schemas/Change"
-          nullable: true
-        new_version_count:
-          type: integer
-
-    # ---- Error ----
-    Error:
-      type: object
-      properties:
-        error:
-          type: string
-
-# ======================== TAGS ========================
-
-tags:
-  - name: Acts
-    description: Create, read, and manage watched legislation acts
-  - name: Changes
-    description: Query detected amendments and updates
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Legislation Monitor API",
+    "description": "Automated legislative change detection for Australian federal and Victorian Acts of Parliament.\nMonitor legislation for amendments, repeals, and insertions by scraping official registers,\ncomparing content via hashing, and surfacing structured diffs.\n\n## Quick Start\n\n1. Install & start the server:\n   ```bash\n   npm install\n   npm run dev\n   ```\n2. Base URL: `http://localhost:3000`\n3. Open `/docs` for interactive Swagger UI access. The raw specification is served at `/api/openapi` and also available statically at `/openapi.json`.\n\n## Architecture\n\n- **Database**: SQLite with WAL mode (stored in `.data/legislation.db`)\n- **Scrapers**: Cheerio-based HTML parsers for federal and Victorian legislation sites\n- **Change detection**: Content hashing + unified diff analysis\n- **Change briefs**: Optional LLM-generated stakeholder summaries (any OpenAI-compatible endpoint) with a deterministic heuristic fallback\n- **Auto-seed**: 5 Acts are seeded on first run (3 federal, 2 Victorian)",
+    "version": "0.1.0",
+    "contact": {
+      "name": "Danielkgr",
+      "url": "https://github.com/Danielkgr/legislation-monitor"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/api/acts": {
+      "get": {
+        "summary": "List all watched Acts",
+        "description": "Returns every Act being monitored, enriched with version counts, last-checked timestamp, and recent change totals (last 7 days).",
+        "operationId": "listActs",
+        "tags": ["Acts"],
+        "responses": {
+          "200": {
+            "description": "A list of Acts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActSummary"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new Act to watch",
+        "description": "Creates a new Act entry and immediately triggers an initial scrape to capture the baseline version.",
+        "operationId": "addAct",
+        "tags": ["Acts"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddActRequest"
+              },
+              "example": {
+                "title": "My Act 2025",
+                "url": "https://www.legislation.gov.au/Details/C2025C00XXX",
+                "jurisdiction": "federal"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Act created with baseline version captured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Act"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Title and URL are required"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Act with this URL already exists",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "This Act is already being watched",
+                  "id": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/acts/{id}": {
+      "get": {
+        "summary": "Get Act details",
+        "description": "Returns full metadata for a specific Act, including version count and recent change statistics.",
+        "operationId": "getAct",
+        "tags": ["Acts"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The numeric ID of the Act"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Act details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Act"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Act not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Act not found"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove an Act from monitoring",
+        "operationId": "deleteAct",
+        "tags": ["Acts"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The numeric ID of the Act to remove"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Act removed successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/acts/{id}/check": {
+      "post": {
+        "summary": "Trigger an immediate scrape and comparison",
+        "description": "Fetches the current version of the Act from its source, compares it against the last known version, and records any detected changes. When a change is detected, a change brief is generated (LLM when configured, heuristic otherwise).",
+        "operationId": "checkAct",
+        "tags": ["Acts"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The numeric ID of the Act to check"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Check completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Act not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/acts/{id}/versions": {
+      "get": {
+        "summary": "List all stored versions for an Act",
+        "description": "Returns every captured snapshot of the Act's text, ordered newest-first with version labels and fetch timestamps.",
+        "operationId": "listVersions",
+        "tags": ["Acts"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The numeric ID of the Act"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of versions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Version"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/changes/{actId}": {
+      "get": {
+        "summary": "Get detected changes for an Act",
+        "description": "Returns a list of all change records, each with a human-readable summary, affected sections, impacted groups, line counts, and the change brief.",
+        "operationId": "getChanges",
+        "tags": ["Changes"],
+        "parameters": [
+          {
+            "name": "actId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The numeric ID of the Act"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of changes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Change"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/changes/{actId}/export": {
+      "get": {
+        "summary": "Export an Act's changes as a file",
+        "description": "Returns all detected changes for the Act as a downloadable file. JSON by default; `?format=md` produces a Markdown change report.",
+        "operationId": "exportChanges",
+        "tags": ["Changes"],
+        "parameters": [
+          {
+            "name": "actId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The numeric ID of the Act"
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["json", "md"],
+              "default": "json"
+            },
+            "description": "Export format"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exported file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Change"
+                  }
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Act not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Act not found"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/changes/count": {
+      "get": {
+        "summary": "Get the pending-changes counter",
+        "description": "Returns the number of detected changes that have not yet been acknowledged.",
+        "operationId": "getChangeCount",
+        "tags": ["Changes"],
+        "responses": {
+          "200": {
+            "description": "Pending count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingCount"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/changes/ack": {
+      "post": {
+        "summary": "Acknowledge pending changes",
+        "description": "Resets the pending-changes counter to zero.",
+        "operationId": "ackChanges",
+        "tags": ["Changes"],
+        "responses": {
+          "200": {
+            "description": "Counter reset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingCount"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "summary": "Read LLM endpoint settings",
+        "description": "Returns the effective LLM settings (database values take precedence over environment variables).",
+        "operationId": "getSettings",
+        "tags": ["Settings"],
+        "responses": {
+          "200": {
+            "description": "Current settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Update LLM endpoint settings",
+        "description": "Persists LLM settings to the database-backed settings store. Any field omitted is left unchanged; passing an empty string for a string field clears it, letting the environment fallback apply.",
+        "operationId": "updateSettings",
+        "tags": ["Settings"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsRequest"
+              },
+              "example": {
+                "llm": {
+                  "enabled": true,
+                  "apiBase": "http://localhost:11434/v1",
+                  "model": "llama3.1",
+                  "temperature": 0.2,
+                  "maxTokens": 1024
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settings saved; returns the new effective settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "llm": {
+                      "$ref": "#/components/schemas/LLMSettings"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/openapi": {
+      "get": {
+        "summary": "The OpenAPI specification",
+        "description": "Serves this specification as JSON.",
+        "operationId": "getOpenApiSpec",
+        "tags": ["Settings"],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.0 specification",
+            "content": {
+              "application/json": {}
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActSummary": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Act"
+          },
+          {
+            "properties": {
+              "version_count": {
+                "type": "integer",
+                "description": "Total number of captured versions"
+              },
+              "last_checked": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Timestamp of the most recent fetch"
+              },
+              "recent_changes": {
+                "type": "integer",
+                "description": "Number of detected changes in the last 7 days"
+              }
+            }
+          }
+        ]
+      },
+      "Act": {
+        "type": "object",
+        "required": ["id", "title", "url", "jurisdiction"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "jurisdiction": {
+            "type": "string",
+            "enum": ["federal", "vic"],
+            "description": "Jurisdiction — \"federal\" (Australian) or \"vic\" (Victorian state)"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AddActRequest": {
+        "type": "object",
+        "required": ["title", "url"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Human-readable title of the Act"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Direct URL to the legislation page"
+          },
+          "jurisdiction": {
+            "type": "string",
+            "enum": ["federal", "vic"],
+            "default": "federal"
+          }
+        }
+      },
+      "Version": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "act_id": {
+            "type": "integer"
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version_label": {
+            "type": "string",
+            "nullable": true
+          },
+          "content_hash": {
+            "type": "string",
+            "description": "CRC32-style content hash for change detection"
+          },
+          "plain_text": {
+            "type": "string",
+            "nullable": true
+          },
+          "source_url": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ChangeBrief": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "description": "One-paragraph stakeholder-facing summary"
+          },
+          "keyChanges": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "whoIsAffected": {
+            "type": "string"
+          },
+          "whyItMatters": {
+            "type": "string"
+          },
+          "significance": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "source": {
+            "type": "string",
+            "enum": ["llm", "heuristic"],
+            "description": "Provenance — whether the LLM or the built-in heuristic produced the brief"
+          }
+        }
+      },
+      "Change": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "act_id": {
+            "type": "integer"
+          },
+          "version_from_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "version_to_id": {
+            "type": "integer"
+          },
+          "detected_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Human-readable change summary"
+          },
+          "sections_changed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "affected_groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Groups likely impacted by these changes"
+          },
+          "change_count": {
+            "type": "integer",
+            "description": "Total added + removed lines"
+          },
+          "brief": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChangeBrief"
+              }
+            ],
+            "nullable": true
+          },
+          "from_label": {
+            "type": "string",
+            "nullable": true
+          },
+          "to_label": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CheckResult": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "hasChange": {
+            "type": "boolean",
+            "description": "Whether a new version was detected"
+          },
+          "change": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Change"
+              }
+            ],
+            "nullable": true
+          },
+          "new_version_count": {
+            "type": "integer"
+          }
+        }
+      },
+      "PendingCount": {
+        "type": "object",
+        "properties": {
+          "pending": {
+            "type": "integer",
+            "description": "Number of changes not yet acknowledged"
+          }
+        }
+      },
+      "LLMSettings": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "apiBase": {
+            "type": "string",
+            "description": "Base URL of any OpenAI-compatible /chat/completions endpoint (cloud or local)"
+          },
+          "apiKey": {
+            "type": "string",
+            "description": "API key, if the endpoint requires one"
+          },
+          "model": {
+            "type": "string"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "maxTokens": {
+            "type": "integer"
+          }
+        }
+      },
+      "SettingsRequest": {
+        "type": "object",
+        "properties": {
+          "llm": {
+            "type": "object",
+            "description": "Any subset of LLMSettings fields; omitted fields are unchanged",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "apiBase": {
+                "type": "string"
+              },
+              "apiKey": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "temperature": {
+                "type": "number"
+              },
+              "maxTokens": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "SettingsResponse": {
+        "type": "object",
+        "properties": {
+          "llm": {
+            "$ref": "#/components/schemas/LLMSettings"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Acts",
+      "description": "Create, read, and manage watched legislation acts"
+    },
+    {
+      "name": "Changes",
+      "description": "Query detected amendments and updates"
+    },
+    {
+      "name": "Settings",
+      "description": "Runtime settings (LLM endpoint) and API metadata"
+    }
+  ]
+}

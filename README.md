@@ -10,6 +10,10 @@ Automated legislative change detection for Australian federal and Victorian stat
 
 </div>
 
+**What it does not do:** it is a change-detection tool, not a legal research or advice tool — it shows you what text changed, not what the change means. It covers federal and Victorian legislation only, keeps everything in a local SQLite file (no accounts, no sync), and has no built-in push notifications: periodic checking is an external cron job calling the check endpoint (see [Adding Alerts](#adding-alerts)).
+
+**Maturity:** working prototype. It runs locally (`npm run dev`) against the two official registers; the scrapers are tuned to the current markup of each site and will need maintenance if those registers change.
+
 ---
 
 ## Overview
@@ -21,9 +25,10 @@ Legislation Monitor watches Australian Acts of Parliament for amendments, repeal
 | Feature | Description |
 |---|---|
 | **Act Tracking** | Add any Act of Parliament (federal or Victorian) and get an instant baseline snapshot stored locally in SQLite. |
-| **Change Detection** | Periodically re-fetches each Act's HTML, hashes the extracted text, and flags anything that differs from the last known version. |
+| **Change Detection** | Re-fetches an Act's HTML when a check is triggered (the **Check** button, or `POST /api/acts/:id/check`), hashes the extracted text, and flags anything that differs from the last known version. Periodic checking is left to an external cron job (see [Adding Alerts](#adding-alerts)). |
 | **Side-by-Side Diffs** | When changes are detected, a rich diff viewer renders inserted, deleted, and modified sections so you can scan updates in seconds. |
-| **Dashboard** | A single-page dashboard shows how many Acts you're watching, jurisdiction breakdown, and the total number of new changes this week. |
+| **Change Briefs (optional)** | When an OpenAI-compatible LLM endpoint is configured (Settings page or `POST /api/settings`), each detected change gets a stakeholder-facing brief — summary, key changes, who is affected, why it matters, significance. Without an LLM, a deterministic heuristic produces the brief instead, and every brief records which one produced it. |
+| **Dashboard** | A single-page dashboard shows how many Acts you're watching, jurisdiction breakdown, and the total number of new changes in the last 7 days. |
 | **API-First** | Every feature is backed by a RESTful API (`/api/acts`, `/api/changes/:actId`, etc.) for easy integration with alerts or third-party tools. |
 
 ## Tech Stack
@@ -47,9 +52,11 @@ legislation-monitor/
 │   │   │   ├── acts/           # CRUD for watched Acts
 │   │   │   └── changes/        # Diff generation & change history
 │   │   ├── acts/[id]/          # Per-Act detail + diff pages
+│   │   ├── docs/               # Swagger UI (serves the OpenAPI spec)
 │   │   ├── globals.css         # Tailwind layer styles
 │   │   ├── layout.tsx          # Root layout (fonts, metadata)
-│   │   └── page.tsx            # Dashboard
+│   │   ├── page.tsx            # Dashboard
+│   │   └── settings/           # LLM endpoint settings page
 │   ├── components/             # Reusable React components
 │   │   ├── ActCard.tsx
 │   │   ├── AddActForm.tsx
@@ -58,7 +65,10 @@ legislation-monitor/
 │   ├── lib/                    # Business logic
 │   │   ├── db.ts               # SQLite schema, seeding, queries
 │   │   ├── diff.ts             # Text-diff engine
-│   │   └── scrapers.ts         # Federal & Victorian web scrapers
+│   │   ├── llm.ts              # Optional LLM change briefs (heuristic fallback)
+│   │   ├── scrapers.ts         # Federal & Victorian web scrapers
+│   │   ├── scheduler.ts        # In-process auto-check scheduler (not wired up; use an external cron)
+│   │   └── structure.ts        # TOC parsing for section-precise diffs
 │   └── types/                  # TypeScript declarations
 ├── .data/                      # Local SQLite database (gitignored)
 ├── public/                     # Static assets
@@ -90,13 +100,15 @@ Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 
 ### Database
 
-On first launch, the application creates a local SQLite database at `.data/legislation.db` with three tables:
+On first launch, the application creates a local SQLite database at `.data/legislation.db` with the following tables:
 
 | Table | Purpose |
 |---|---|
 | `acts` | Metadata about watched legislation (title, URL, jurisdiction) |
 | `versions` | Snapshots of Act text at each check (with content hashes) |
-| `changes` | Records of detected differences between versions |
+| `changes` | Records of detected differences between versions (including the change brief) |
+| `settings` | Key-value store for runtime settings (LLM endpoint config, pending-changes counter) |
+| `content_diffs` | Per-line diff data for the viewer (created on the first detected change) |
 
 The database uses WAL mode for safe concurrent reads during scraping.
 
@@ -136,7 +148,12 @@ You can import the spec into [Postman](https://www.postman.com/), [Insomnia](htt
 | `GET` | `/api/acts/:id` | Get Act details and metadata |
 | `POST` | `/api/acts/:id/check` | Trigger an immediate scrape & comparison |
 | `GET` | `/api/acts/:id/versions` | List all stored versions for an Act |
-| `GET` | `/api/changes/:actId` | Get detected changes with summaries and affected groups |
+| `GET` | `/api/changes/:actId` | Get detected changes with summaries, affected groups and briefs |
+| `GET` | `/api/changes/:actId/export` | Export an Act's changes (`?format=json` default, `?format=md` for a Markdown report) |
+| `GET` | `/api/changes/count` | Current pending-changes counter |
+| `POST` | `/api/changes/ack` | Reset the pending-changes counter |
+| `GET` / `POST` | `/api/settings` | Read / update LLM endpoint settings |
+| `GET` | `/api/openapi` | The OpenAPI specification (same document as `/openapi.json`) |
 
 ### Request / Response Schemas
 
@@ -237,7 +254,7 @@ npm run lint      # ESLint check
 
 ### Running as an External API Server
 
-The Legislation Monitor doubles as an API backend for external consumption. The OpenAPI specification is auto-generated from the codebase.
+The Legislation Monitor doubles as an API backend for external consumption. The OpenAPI specification ships with the repository (`public/openapi.json`) and is served both statically at `/openapi.json` and by the `/api/openapi` endpoint.
 
 **Development (local):**
 ```bash
@@ -285,7 +302,7 @@ Edit `next.config.ts` for framework-level settings (rewrites, redirects, environ
 The `/api/changes/:actId` endpoint returns change data as JSON. You can build a lightweight notification layer by:
 
 1. Polling or using a cron job (e.g., Vercel Cron) to call `/api/acts/:id/check`.
-2. Checking the response for `recent_changes > 0`.
+2. Checking the response for `hasChange: true` (or polling `GET /api/acts` and checking each Act's `recent_changes` count, or `GET /api/changes/count` for the pending total).
 3. Sending emails, Slack messages, or Push notifications when changes are detected.
 
 ## License
