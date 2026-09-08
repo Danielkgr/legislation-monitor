@@ -70,10 +70,35 @@ function initSchema() {
       FOREIGN KEY (act_id) REFERENCES acts(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_versions_act_id ON versions(act_id);
     CREATE INDEX IF NOT EXISTS idx_versions_fetched_at ON versions(fetched_at DESC);
     CREATE INDEX IF NOT EXISTS idx_changes_act_id ON changes(act_id);
   `);
+
+  // Lightweight forward migration: SQLite has no `ADD COLUMN IF NOT EXISTS`,
+  // so check the schema first (older DBs predate the `brief` column).
+  const changesCols = db!.prepare("PRAGMA table_info(changes)").all() as Array<{ name: string }>;
+  if (!changesCols.some((c) => c.name === "brief")) {
+    db!.exec("ALTER TABLE changes ADD COLUMN brief TEXT");
+  }
+
+  // Add `structure` column for storing parsed TOC JSON on versions.
+  const versionsCols = db!.prepare("PRAGMA table_info(versions)").all() as Array<{ name: string }>;
+  if (!versionsCols.some((c) => c.name === "structure")) {
+    db!.exec("ALTER TABLE versions ADD COLUMN structure TEXT");
+  }
+
+  // Add `section_details` column for storing TOC-enriched section changes.
+  const changesCols2 = db!.prepare("PRAGMA table_info(changes)").all() as Array<{ name: string }>;
+  if (!changesCols2.some((c) => c.name === "section_details")) {
+    db!.exec("ALTER TABLE changes ADD COLUMN section_details TEXT");
+  }
 }
 
 // Seed data — real Acts from both jurisdictions
@@ -139,6 +164,8 @@ export interface Version {
   content_hash: string;
   plain_text: string | null;
   source_url: string | null;
+  /** JSON-serialized table-of-contents tree (parsed TOC) */
+  structure: string | null;
 }
 
 export interface Change {
@@ -151,6 +178,35 @@ export interface Change {
   sections_changed: string | null;
   affected_groups: string | null;
   change_count: number;
+  brief: string | null;
+  /** JSON array of TOC-enriched section change objects */
+  section_details: string | null;
+}
+
+// --- Settings (key-value store, user-configurable at runtime) ---
+
+export function getSetting(key: string): string | null {
+  const d = connectDB();
+  const row = d.prepare("SELECT value FROM settings WHERE key = ?").get(key) as
+    | Record<string, unknown>
+    | undefined;
+  return row ? (row.value as string) : null;
+}
+
+export function setSetting(key: string, value: string): void {
+  const d = connectDB();
+  d.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+  ).run(key, value);
+}
+
+export function getAllSettings(): Record<string, string> {
+  const d = connectDB();
+  const rows = d.prepare("SELECT key, value FROM settings").all() as Array<
+    Record<string, unknown>
+  >;
+  return Object.fromEntries(rows.map((r) => [r.key as string, r.value as string]));
 }
 
 export { connectDB };
