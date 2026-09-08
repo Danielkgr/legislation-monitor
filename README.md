@@ -67,7 +67,6 @@ legislation-monitor/
 │   │   ├── diff.ts             # Text-diff engine
 │   │   ├── llm.ts              # Optional LLM change briefs (heuristic fallback)
 │   │   ├── scrapers.ts         # Federal & Victorian web scrapers
-│   │   ├── scheduler.ts        # In-process auto-check scheduler (not wired up; use an external cron)
 │   │   └── structure.ts        # TOC parsing for section-precise diffs
 │   └── types/                  # TypeScript declarations
 ├── .data/                      # Local SQLite database (gitignored)
@@ -241,7 +240,7 @@ The application maintains two scrapers tuned to the structure of each jurisdicti
 Both scrapers implement:
 - **Exponential-backoff retry** (2 retries, 1s / 2s delays)
 - **30-second fetch timeout** per attempt
-- **Content hashing** (CRC32-style integer hash for change detection)
+- **Content hashing** (SHA-256 hex digest of normalised text, for change detection)
 
 ## Available Scripts
 
