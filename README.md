@@ -2,7 +2,7 @@
 
 # Legislation Monitor
 
-Automated legislative change detection for Australian federal and Victorian state acts. Scans, compares, and surfaces what changed — so you don't have to read through every revision yourself.
+Automated legislative change detection for Australian federal and Victorian state acts. Scans, compares, and surfaces what changed - so you don't have to read through every revision yourself.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
@@ -10,7 +10,7 @@ Automated legislative change detection for Australian federal and Victorian stat
 
 </div>
 
-**What it does not do:** it is a change-detection tool, not a legal research or advice tool — it shows you what text changed, not what the change means. It covers federal and Victorian legislation only, keeps everything in a local SQLite file (no accounts, no sync), and has no built-in push notifications: periodic checking is an external cron job calling the check endpoint (see [Adding Alerts](#adding-alerts)).
+**What it does not do:** it is a change-detection tool, not a legal research or advice tool - it shows you what text changed, not what the change means. It covers federal and Victorian legislation only, keeps everything in a local SQLite file (no accounts, no sync), and has no built-in push notifications: periodic checking is an external cron job calling the check endpoint (see [Adding Alerts](#adding-alerts)).
 
 **Maturity:** working prototype. It runs locally (`npm run dev`) against the two official registers; the scrapers are tuned to the current markup of each site and will need maintenance if those registers change.
 
@@ -27,7 +27,7 @@ Legislation Monitor watches Australian Acts of Parliament for amendments, repeal
 | **Act Tracking** | Add any Act of Parliament (federal or Victorian) and get an instant baseline snapshot stored locally in SQLite. |
 | **Change Detection** | Re-fetches an Act's HTML when a check is triggered (the **Check** button, or `POST /api/acts/:id/check`), hashes the extracted text, and flags anything that differs from the last known version. Periodic checking is left to an external cron job (see [Adding Alerts](#adding-alerts)). |
 | **Side-by-Side Diffs** | When changes are detected, a rich diff viewer renders inserted, deleted, and modified sections so you can scan updates in seconds. |
-| **Change Briefs (optional)** | When an OpenAI-compatible LLM endpoint is configured (Settings page or `POST /api/settings`), each detected change gets a stakeholder-facing brief — summary, key changes, who is affected, why it matters, significance. Without an LLM, a deterministic heuristic produces the brief instead, and every brief records which one produced it. |
+| **Change Briefs (optional)** | When an OpenAI-compatible LLM endpoint is configured (Settings page or `POST /api/settings`), each detected change gets a stakeholder-facing brief - summary, key changes, who is affected, why it matters, significance. Without an LLM, a deterministic heuristic produces the brief instead, and every brief records which one produced it. |
 | **Dashboard** | A single-page dashboard shows how many Acts you're watching, jurisdiction breakdown, and the total number of new changes in the last 7 days. |
 | **API-First** | Every feature is backed by a RESTful API (`/api/acts`, `/api/changes/:actId`, etc.) for easy integration with alerts or third-party tools. |
 
@@ -39,7 +39,7 @@ Legislation Monitor watches Australian Acts of Parliament for amendments, repeal
 | **Language** | [TypeScript 5](https://www.typescriptlang.org/) |
 | **Styling** | [Tailwind CSS 4](https://tailwindcss.com/) |
 | **Database** | [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (local SQLite file with WAL mode) |
-| **Scraping** | [Cheerio](https://cheerio.js.org/) — server-side jQuery for HTML parsing |
+| **Scraping** | [Cheerio](https://cheerio.js.org/) - server-side jQuery for HTML parsing |
 | **Image Processing** | [Sharp](https://sharp.pixelplumbing.com/) |
 
 ## Project Structure
@@ -132,8 +132,8 @@ A complete [OpenAPI 3.0](https://spec.openapis.org/oas/v3.0.3) specification is 
 
 | Format | URL |
 |---|---|
-| **Interactive Docs** | [`/docs`](http://localhost:3000/docs) — Swagger UI with try-it-out, code samples, and schema explorer |
-| **Raw Spec (JSON)** | [`/openapi.json`](http://localhost:3000/openapi.json) — Download or curl the specification directly |
+| **Interactive Docs** | [`/docs`](http://localhost:3000/docs) - Swagger UI with try-it-out, code samples, and schema explorer |
+| **Raw Spec (JSON)** | [`/openapi.json`](http://localhost:3000/openapi.json) - Download or curl the specification directly |
 
 You can import the spec into [Postman](https://www.postman.com/), [Insomnia](https://insomnia.rest/), [Hoppscotch](https://hoppscotch.io/), or any other API tool for quick exploration.
 
@@ -306,7 +306,7 @@ The `/api/changes/:actId` endpoint returns change data as JSON. You can build a 
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgements
 
