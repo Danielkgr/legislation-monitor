@@ -147,7 +147,7 @@ export default function SettingsPage() {
               />
             </Field>
 
-            <Field label="Model" hint="e.g. llama3.1, qwen2.5, gpt-4o-mini">
+            <Field label="Model" hint="e.g. llama3.1, mistral-small, gpt-4o-mini">
               <input
                 type="text"
                 value={form.model}
