@@ -86,7 +86,7 @@ async function fetchWithRetry(url: string, retries = 2): Promise<string> {
       const res = await fetch(url, {
         headers: {
           "User-Agent":
-            "LegislationMonitor/1.0 (+https://github.com/legislation-monitor)",
+            "LegislationMonitor/1.0 (+https://github.com/Danielkgr/legislation-monitor)",
           Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
         signal: AbortSignal.timeout(30_000),
