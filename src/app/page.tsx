@@ -21,6 +21,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [checkingAll, setCheckingAll] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [jurisdictionFilter, setJurisdictionFilter] = useState<"all" | "federal" | "vic">("all");
 
   const fetchActs = useCallback(async () => {
     try {
@@ -40,6 +43,21 @@ export default function Dashboard() {
     fetchActs();
   }, [fetchActs]);
 
+  // Fetch pending-change count on mount
+  useEffect(() => {
+    fetch("/api/changes/count")
+      .then((r) => r.json())
+      .then((data: { pending?: number }) => setPendingCount(data.pending ?? 0))
+      .catch(() => {});
+  }, []);
+
+  const dismissPending = async () => {
+    setPendingCount(0);
+    try {
+      await fetch("/api/changes/ack", { method: "POST" });
+    } catch {}
+  };
+
   const handleCheckAll = async () => {
     setCheckingAll(true);
     const promises = acts.map((act) =>
@@ -56,6 +74,13 @@ export default function Dashboard() {
   const vicCount = acts.filter((a) => a.jurisdiction === "vic").length;
   const totalChanges = acts.reduce((sum, a) => sum + a.recent_changes, 0);
 
+  // Filtered acts based on search + jurisdiction
+  const filteredActs = acts.filter((act) => {
+    const matchesSearch = !searchQuery || act.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesJurisdiction = jurisdictionFilter === "all" || act.jurisdiction === jurisdictionFilter;
+    return matchesSearch && matchesJurisdiction;
+  });
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -71,12 +96,36 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href="/settings"
+              className="text-xs text-faint hover:text-foreground transition-colors flex items-center gap-1"
+              title="Settings (AI summaries, automation)"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="hidden sm:inline">Settings</span>
+            </Link>
             <Link href="/docs" className="text-xs text-faint hover:text-foreground transition-colors flex items-center gap-1" title="Open API documentation (Swagger UI)">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-3-3v6m-7 4h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
               </svg>
               <span className="hidden sm:inline">API</span>
             </Link>
+            {pendingCount > 0 && (
+              <button
+                onClick={dismissPending}
+                className="flex items-center gap-1.5 text-xs text-accent animate-fade-in hover:text-accent-light transition-colors"
+                title={`Automated check detected ${pendingCount} new change${pendingCount > 1 ? "s" : ""}. Click to dismiss.`}
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-accent" />
+                </span>
+                {pendingCount} new{pendingCount > 1 ? "s" : ""}
+              </button>
+            )}
             <CheckButton
               onClick={handleCheckAll}
               checking={checkingAll}
@@ -125,6 +174,49 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Search & Filter bar */}
+        {acts.length > 0 && !loading && (
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <div className="relative flex-1 min-w-64">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-2a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search acts…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-background/60 border border-white/[0.08] rounded-lg text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/60"
+              />
+            </div>
+            <div className="flex items-center gap-1 bg-background/60 border border-white/[0.08] rounded-lg p-1">
+              {(["all", "federal", "vic"] as const).map((j) => (
+                <button
+                  key={j}
+                  onClick={() => setJurisdictionFilter(j)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    jurisdictionFilter === j
+                      ? "bg-accent/20 text-accent"
+                      : "text-foreground/50 hover:text-foreground/80"
+                  }`}
+                >
+                  {j === "all" ? "All" : j === "federal" ? "Federal" : "VIC"}
+                </button>
+              ))}
+            </div>
+            {(searchQuery || jurisdictionFilter !== "all") && (
+              <button
+                onClick={() => { setSearchQuery(""); setJurisdictionFilter("all"); }}
+                className="text-xs text-faint hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Clear
+              </button>
+            )}
+          </div>
+        )}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(3)].map((_, i) => (
@@ -173,13 +265,19 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {acts.map((act, index) => (
-                <div key={act.id} className={`animate-fade-in animate-delay-${Math.min(index * 100, 300)}`}>
-                  <Link href={`/acts/${act.id}`} className="block">
-                    <ActCard act={act} />
-                  </Link>
+              {filteredActs.length === 0 && acts.length > 0 ? (
+                <div className="col-span-full text-center py-12">
+                  <p className="text-foreground/40">No acts match your search.</p>
                 </div>
-              ))}
+              ) : (
+                filteredActs.map((act, index) => (
+                  <div key={act.id} className={`animate-fade-in animate-delay-${Math.min(index * 100, 300)}`}>
+                    <Link href={`/acts/${act.id}`} className="block">
+                      <ActCard act={act} />
+                    </Link>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Add more row */}

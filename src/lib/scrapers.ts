@@ -1,10 +1,83 @@
 import * as cheerio from "cheerio";
+import { createHash } from "crypto";
 
 interface ScraperResult {
   title: string;
   plainText: string;
   versionLabel: string | null;
   contentHash: string;
+  /** Raw HTML for downstream TOC parsing / structural analysis */
+  rawHtml?: string;
+}
+
+type Cheerio = ReturnType<typeof cheerio.load>;
+
+/**
+ * True for lines that carry no legislative substance but change between page
+ * renders (timestamps, breadcrumbs, print links). Stripping them keeps content
+ * hashes stable across cosmetic site updates so we only flag real amendments.
+ *
+ * The rules are deliberately conservative (anchored, specific prefixes) to
+ * avoid ever dropping genuine legislative text.
+ */
+function isVolatileLine(line: string): boolean {
+  const t = line.trim();
+  if (!t) return true;
+  return (
+    /^last (updated|modified|amended|review)(:?.*)?$/i.test(t) ||
+    /^(you are here|print this page|skip to (main )?content)/i.test(t) ||
+    /^home\s*\/.*$/i.test(t) ||
+    /^copyright \d{4}/i.test(t)
+  );
+}
+
+/**
+ * Deterministically normalize raw page text into a stable, line-oriented form
+ * suitable for hashing and line-level diffing.
+ *
+ *  - Unicode whitespace variants -> single space
+ *  - Per-line: collapse whitespace runs, trim
+ *  - Drop empty lines and known volatile chrome lines
+ *
+ * Line/paragraph boundaries are preserved (unlike the old single-line
+ * collapse), which is what makes the diff viewer meaningful.
+ */
+export function normalizeText(raw: string): string {
+  return raw
+    .replace(/[\u00a0\u2007\u202f\u2009\u200b]/g, " ")
+    .replace(/\u00ad/g, "")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => !isVolatileLine(line))
+    .join("\n")
+    .trim();
+}
+
+/**
+ * Extract text from a DOM region while preserving block boundaries. We append
+ * a newline after each block-level element (and turn <br> into newlines) before
+ * flattening, so each heading/paragraph/list item lands on its own line.
+ */
+function extractStructuredText($: Cheerio, selector: string): string {
+  const $root = $(selector).clone();
+  $root.find("br").replaceWith("\n");
+  $root
+    .find(
+      "h1,h2,h3,h4,h5,h6,p,li,dt,dd,div,section,article,table,thead,tbody,tr,blockquote,pre,figure"
+    )
+    .each((_, el) => {
+      $(el).append("\n");
+    });
+  return normalizeText($root.text());
+}
+
+/**
+ * SHA-256 hex digest. Replaces the previous 32-bit integer hash, which had a
+ * collision-prone small space. Hashing the normalized text (not raw HTML)
+ * makes detection robust to cosmetic markup changes.
+ */
+export function hashText(text: string): string {
+  return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
 async function fetchWithRetry(url: string, retries = 2): Promise<string> {
@@ -32,108 +105,93 @@ async function scrapeFederal(url: string): Promise<ScraperResult> {
   const html = await fetchWithRetry(url);
   const $ = cheerio.load(html);
 
-  // Extract title from page
   const title =
     $("h1").first().text().trim() ||
-    ($("#page-title, .title").first().text().trim()) ||
+    $("#page-title, .title").first().text().trim() ||
     "Federal Act";
 
-  // Try to get the main content area
-  let plainText =
-    $("#content, #main-content, .legislation-content, main")
-      .first()
-      .text()
-      .replace(/\s+/g, " ")
-      .trim();
-
-  if (!plainText || plainText.length < 50) {
-    // Fallback: get all text from body
-    plainText = $("body").text().replace(/\s+/g, " ").trim();
-  }
-
-  // Try to extract version label from URL or page metadata
-  const urlParts = url.split("/");
-  const versionLabel = extractVersionLabel(url);
+  const content = extractStructuredText(
+    $,
+    "#content, #main-content, .legislation-content, main"
+  );
+  const plainText =
+    content.length >= 50 ? content : extractStructuredText($, "body");
 
   return {
-    title: title || "Federal Act",
+    title,
     plainText,
-    versionLabel,
-    contentHash: simpleHash(plainText),
+    versionLabel: extractVersionLabel(url),
+    contentHash: hashText(plainText),
+    rawHtml: html,
   };
 }
 
 async function scrapeVictorian(url: string): Promise<ScraperResult> {
-  // Victorian legislation uses the Tide framework which requires JS rendering.
-  // Try the given URL, then fall back to common patterns.
-  let html: string;
+  // Victorian legislation uses the Tide framework which can be client-rendered.
+  // Try progressively more generic resolution patterns until we get a real page.
+  const candidates: string[] = [url];
+  if (/\/in-force\/act\//.test(url)) {
+    candidates.push(url.replace(/\/in-force\/act\//, "/in-force/acts/"));
+  }
 
-  // Pattern 1: Direct URL (e.g., /in-force/act/crimes-act-1958)
-  try {
-    html = await fetchWithRetry(url);
-    const $ = cheerio.load(html);
-    const title = $("h1").first().text().trim() || "Victorian Act";
-    if ($("body").text().length > 500 && !$("body").text().includes("We couldn't find that page")) {
-      // Successfully fetched a real act page
-      let plainText = $("#content, #main-content, .legislation, main")
-        .first()
-        .text()
-        .replace(/\s+/g, " ")
-        .trim();
-      if (!plainText || plainText.length < 50) {
-        plainText = $("body").text().replace(/\s+/g, " ").trim();
+  for (const candidate of candidates) {
+    try {
+      const html = await fetchWithRetry(candidate);
+      const $ = cheerio.load(html);
+      const bodyText = $("body").text();
+      if (bodyText.length < 500 || /we couldn't find that page/i.test(bodyText)) {
+        continue; // Not a real Act page — try the next candidate.
       }
-      const versionLabel = extractVersionLabel(url);
-      return { title, plainText, versionLabel, contentHash: simpleHash(plainText) };
+      const title =
+        $("h1").first().text().trim() ||
+        extractTitleFromTideListings(html) ||
+        "Victorian Act";
+      const plainText = extractStructuredText(
+        $,
+        "#content, #main-content, .legislation, main"
+      );
+      return {
+        title,
+        plainText,
+        versionLabel: extractVersionLabel(url),
+        contentHash: hashText(plainText),
+        rawHtml: html,
+      };
+    } catch {
+      /* fall through to next candidate */
     }
-  } catch { /* fall through */ }
+  }
 
-  // Pattern 2: /in-force/acts/:slug (listing page fallback)
-  const listingUrl = url.replace(/\/in-force\/act\//, "/in-force/acts/");
-  try {
-    html = await fetchWithRetry(listingUrl);
-    const $ = cheerio.load(html);
-    let title = $("h1").first().text().trim() || "Victorian Act";
-    if (!title) {
-      // Try to find act name from search results or listings
-      title = extractTitleFromTideListings(html);
-    }
-    let plainText = $("#content, #main-content, .tide-table, main")
-      .first()
-      .text()
-      .replace(/\s+/g, " ")
-      .trim();
-    if (!plainText || plainText.length < 50) {
-      plainText = $("body").text().replace(/\s+/g, " ").trim();
-    }
-    const versionLabel = extractVersionLabel(url);
-    return { title, plainText, versionLabel, contentHash: simpleHash(plainText) };
-  } catch { /* fall through */ }
-
-  // Pattern 3: Use Tide search to find the act
+  // Tide search fallback
   const actName = url.split("/").pop() || "Victorian Act";
   const searchUrl = `https://www.legislation.vic.gov.au/search?q=${encodeURIComponent(actName)}`;
   try {
-    html = await fetchWithRetry(searchUrl);
+    const html = await fetchWithRetry(searchUrl);
     const $ = cheerio.load(html);
-    let title = $("h1").first().text().trim() || actName;
-    // Tide search results are client-rendered, so we get the page template
-    let plainText = $("#content, #main-content, .tide-search-listing, main")
-      .first()
-      .text()
-      .replace(/\s+/g, " ")
-      .trim();
-    if (!plainText || plainText.length < 50) {
-      plainText = $("body").text().replace(/\s+/g, " ").trim();
-    }
-    const versionLabel = extractVersionLabel(url);
-    return { title, plainText, versionLabel, contentHash: simpleHash(plainText) };
+    const title = $("h1").first().text().trim() || actName;
+    const plainText = extractStructuredText(
+      $,
+      "#content, #main-content, .tide-search-listing, main"
+    );
+    return {
+      title,
+      plainText,
+      versionLabel: extractVersionLabel(url),
+      contentHash: hashText(plainText),
+      rawHtml: html,
+    };
   } catch {
-    // Last resort: use URL basename as the title and return empty content
-    const parts = url.split("/");
-    const slug = parts[parts.length - 1] || "Victorian Act";
+    // Last resort: a stable placeholder derived only from the URL slug.
+    // No volatile content, so it won't produce spurious change flags.
+    const slug = url.split("/").filter(Boolean).pop() || "Victorian Act";
     const title = slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-    return { title, plainText: `Victorian legislation page (${title}) — requires JavaScript rendering on www.legislation.vic.gov.au`, versionLabel: null, contentHash: simpleHash(title) };
+    const plainText = `Victorian legislation: ${title} (page requires JavaScript rendering to verify amendments)`;
+    return {
+      title,
+      plainText,
+      versionLabel: null,
+      contentHash: hashText(plainText),
+    };
   }
 }
 
@@ -148,15 +206,6 @@ function extractVersionLabel(url: string): string | null {
   // Try to find a version identifier in the URL
   const match = url.match(/(C\d{4}[A-Z]\d+|20\d{2})/);
   return match ? match[1] : null;
-}
-
-function simpleHash(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash + char) | 0;
-  }
-  return Math.abs(hash).toString(36);
 }
 
 export async function scrapeAct(url: string, jurisdiction: "federal" | "vic"): Promise<ScraperResult> {

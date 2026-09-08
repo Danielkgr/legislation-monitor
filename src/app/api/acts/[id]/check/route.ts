@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { scrapeAct } from "@/lib/scrapers";
 import { analyzeChanges } from "@/lib/diff";
+import { generateChangeBrief } from "@/lib/llm";
+import { serializeTOCFromHTML, deserializeTOC, identifyAffectedSectionsEnriched } from "@/lib/structure";
 
 export async function POST(
   _req: any,
@@ -34,16 +36,19 @@ export async function POST(
     const existingHashes = new Set(existingVersions.map((v) => v.content_hash));
 
     if (!existingHashes.has(scrapeResult.contentHash)) {
-      // New version detected
+      // New version detected — parse TOC structure from raw HTML if available
+      const structure = scrapeResult.rawHtml ? serializeTOCFromHTML(scrapeResult.rawHtml) : null;
+
       const insertVersion = db.prepare(
-        `INSERT INTO versions (act_id, version_label, content_hash, plain_text, source_url) VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO versions (act_id, version_label, content_hash, plain_text, source_url, structure) VALUES (?, ?, ?, ?, ?, ?)`
       );
       const result = insertVersion.run(
         id,
         scrapeResult.versionLabel,
         scrapeResult.contentHash,
         scrapeResult.plainText,
-        act.url
+        act.url,
+        structure
       );
       newVersionId = result.lastInsertRowid as number;
 
@@ -55,29 +60,60 @@ export async function POST(
         if (oldText && newText !== oldText) {
           const diffResult = analyzeChanges(oldText, newText, act.title);
 
-          // Store sections and affected groups as JSON
+          // Use parsed TOC structure (from previous version) for section-precise enrichment
+          let enrichedDetails: string | null = null;
+          if (latestVersion.structure) {
+            try {
+              const toc = deserializeTOC(latestVersion.structure);
+              const details = identifyAffectedSectionsEnriched(
+                toc,
+                oldText.split('\n'),
+                newText.split('\n')
+              );
+              enrichedDetails = JSON.stringify(details);
+            } catch (parseErr) {
+              console.warn("Failed to enrich section analysis:", parseErr);
+            }
+          }
+
+          // Structured, stakeholder-facing brief — LLM when configured,
+          // otherwise the deterministic heuristic. Never blocks on LLM failure.
+          const brief = await generateChangeBrief({
+            actTitle: act.title,
+            oldText,
+            newText,
+            heuristic: diffResult,
+          });
+
+          // Store sections, affected groups, section_details and the full brief as JSON
           const sectionsJson = JSON.stringify(diffResult.changedSections.slice(0, 10));
           const affectedJson = JSON.stringify(diffResult.affectedGroups);
+          const sectionDetailsJson = enrichedDetails ?? JSON.stringify([]);
+          const briefJson = JSON.stringify(brief);
 
           const insertChange = db.prepare(
-            `INSERT INTO changes (act_id, version_from_id, version_to_id, summary, sections_changed, affected_groups, change_count)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`
+            `INSERT INTO changes (act_id, version_from_id, version_to_id, summary, sections_changed, affected_groups, change_count, brief, section_details)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
           );
           const changeRes = insertChange.run(
             id,
             latestVersion.id,
             newVersionId,
-            diffResult.summary,
+            brief.summary,
             sectionsJson,
             affectedJson,
-            diffResult.addedLines + diffResult.removedLines
+            diffResult.addedLines + diffResult.removedLines,
+            briefJson,
+            sectionDetailsJson
           );
           changeRecord = {
             id: changeRes.lastInsertRowid as number,
-            summary: diffResult.summary,
+            summary: brief.summary,
             sections_changed: diffResult.changedSections.slice(0, 10),
             affected_groups: diffResult.affectedGroups,
             change_count: diffResult.addedLines + diffResult.removedLines,
+            brief,
+            section_details: JSON.parse(sectionDetailsJson),
           };
 
           // Store full diffs in a separate table for viewing

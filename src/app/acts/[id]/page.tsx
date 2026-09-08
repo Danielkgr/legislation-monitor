@@ -26,6 +26,23 @@ interface Version {
   source_url: string | null;
 }
 
+interface ChangeBrief {
+  summary: string;
+  keyChanges: string[];
+  whoIsAffected: string;
+  whyItMatters: string;
+  significance: number;
+  source: "llm" | "heuristic";
+}
+
+interface EnrichedSectionDetail {
+  sectionNumber: string | null;
+  sectionTitle: string;
+  changeType: "added" | "removed" | "modified";
+  parentPath: string;
+  context: string;
+}
+
 interface ChangeRecord {
   id: number;
   act_id: number;
@@ -36,6 +53,8 @@ interface ChangeRecord {
   sections_changed: string[];
   affected_groups: string[];
   change_count: number;
+  brief: ChangeBrief | null;
+  section_details: EnrichedSectionDetail[] | null;
 }
 
 export default function ActDetail() {
@@ -52,6 +71,7 @@ export default function ActDetail() {
   const [selectedVersionB, setSelectedVersionB] = useState<number | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState<"json" | "md" | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -103,6 +123,25 @@ export default function ActDetail() {
     } catch (err) {
       console.error("Delete failed:", err);
       setDeleting(false);
+    }
+  };
+
+  const handleExport = async (format: "json" | "md") => {
+    setExporting(format);
+    try {
+      const res = await fetch(`/api/changes/${actId}/export?format=${format}`);
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `changes-${actId}.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -183,6 +222,32 @@ export default function ActDetail() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
+            <div className="relative group">
+              <button
+                className="p-2 text-faint hover:text-foreground transition-colors rounded-lg hover:bg-white/[0.06]"
+                title="Export changes"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a2 2 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </button>
+              <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-surface border border-white/10 rounded-lg shadow-xl overflow-hidden z-20">
+                <button
+                  onClick={() => handleExport("json")}
+                  disabled={exporting !== null}
+                  className="block w-full px-4 py-2 text-sm text-left text-foreground/70 hover:bg-white/5 hover:text-foreground disabled:opacity-50"
+                >
+                  {exporting === "json" ? "Exporting…" : "Export JSON"}
+                </button>
+                <button
+                  onClick={() => handleExport("md")}
+                  disabled={exporting !== null}
+                  className="block w-full px-4 py-2 text-sm text-left text-foreground/70 hover:bg-white/5 hover:text-foreground disabled:opacity-50 border-t border-white/5"
+                >
+                  {exporting === "md" ? "Exporting…" : "Export Markdown"}
+                </button>
+              </div>
+            </div>
             <CheckButton onClick={handleCheck} checking={checking} />
             <a
               href={act.url}
@@ -212,16 +277,19 @@ export default function ActDetail() {
       {/* Changes Section */}
       {changes.length > 0 && (
         <section className="mb-10 animate-fade-in">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <svg className="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
-            Recent Changes ({changes.length})
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <svg className="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              Recent Changes ({changes.length})
+            </h2>
+            <ChangeFrequencyChart changes={changes} />
+          </div>
 
           <div className="space-y-4">
-            {changes.map((change, index) => (
-              <ChangeCard key={change.id} change={change} versionMap={versions} actTitle={act.title} />
+            {changes.map((change) => (
+              <ChangeCard key={change.id} change={change} versionMap={versions} />
             ))}
           </div>
         </section>
@@ -307,26 +375,61 @@ export default function ActDetail() {
   );
 }
 
-function ChangeCard({ change, versionMap, actTitle }: {
+function SignificanceBadge({ value }: { value: number }) {
+  const cls =
+    value >= 7
+      ? "bg-danger/10 text-danger"
+      : value >= 4
+        ? "bg-accent-amber/10 text-accent-amber"
+        : "bg-white/[0.04] text-faint";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}
+      title="Significance score (0-10)"
+    >
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+      </svg>
+      {value}/10
+    </span>
+  );
+}
+
+function ChangeCard({ change, versionMap }: {
   change: ChangeRecord;
   versionMap: Version[];
-  actTitle: string;
 }) {
   const fromLabel = change.version_from_id
-    ? (versionMap.find((v) => v.id === change.version_from_id)?.version_label || "")
-    : "";
+    ? (versionMap.find((v) => v.id === change.version_from_id)?.version_label || `v${change.version_from_id}`)
+    : "—";
   const toLabel = change.version_to_id
-    ? (versionMap.find((v) => v.id === change.version_to_id)?.version_label || change.version_to_id.toString())
-    : "";
+    ? (versionMap.find((v) => v.id === change.version_to_id)?.version_label || `v${change.version_to_id}`)
+    : "—";
+  const brief = change.brief;
 
   return (
     <div className="bg-surface/70 rounded-xl border border-white/[0.06] p-5 card-lift">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs text-foreground/40 font-mono">{change.detected_at.slice(0, 10)}</span>
+          <span className="inline-flex items-center gap-1 text-xs text-foreground/40 font-mono">
+            {fromLabel} <span className="text-faint">→</span> {toLabel}
+          </span>
           <span className="inline-flex items-center px-2 py-0.5 bg-accent-amber/10 text-accent-amber rounded-full text-xs font-medium">
             {change.change_count} line{change.change_count !== 1 ? "s" : ""} changed
           </span>
+          {brief && (
+            <>
+              <SignificanceBadge value={brief.significance} />
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                  brief.source === "llm" ? "bg-accent/10 text-accent" : "bg-white/[0.04] text-faint"
+                }`}
+              >
+                {brief.source === "llm" ? "AI brief" : "Auto summary"}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -335,8 +438,38 @@ function ChangeCard({ change, versionMap, actTitle }: {
         <p className="text-sm leading-relaxed text-foreground/80 mb-3">{change.summary}</p>
       )}
 
-      {/* Affected groups */}
-      {change.affected_groups && change.affected_groups.length > 0 && (
+      {/* Key changes (from structured brief) */}
+      {brief && brief.keyChanges.length > 0 && (
+        <ul className="mb-3 space-y-1.5">
+          {brief.keyChanges.map((k, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-foreground/70">
+              <span className="text-accent mt-0.5">•</span>
+              <span>{k}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Who's affected / why it matters (from structured brief) */}
+      {brief && (brief.whoIsAffected || brief.whyItMatters) && (
+        <div className="grid sm:grid-cols-2 gap-3 mb-3">
+          {brief.whoIsAffected && (
+            <div className="p-3 bg-background/40 rounded-lg border border-white/[0.05]">
+              <p className="text-[11px] uppercase tracking-wide text-faint font-medium mb-1">Who&apos;s affected</p>
+              <p className="text-sm text-foreground/70">{brief.whoIsAffected}</p>
+            </div>
+          )}
+          {brief.whyItMatters && (
+            <div className="p-3 bg-background/40 rounded-lg border border-white/[0.05]">
+              <p className="text-[11px] uppercase tracking-wide text-faint font-medium mb-1">Why it matters</p>
+              <p className="text-sm text-foreground/70">{brief.whyItMatters}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Affected groups (legacy records without a brief) */}
+      {!brief && change.affected_groups && change.affected_groups.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <span className="text-xs text-foreground/40 font-medium">Affects:</span>
           {change.affected_groups.map((group) => (
@@ -492,4 +625,44 @@ function DiffModal({ versionA, versionB, onClose }: {
 
 function truncate(str: string, len: number): string {
   return str.length > len ? str.slice(0, len) + "..." : str;
+}
+
+function ChangeFrequencyChart({ changes }: { changes: ChangeRecord[] }) {
+  // Group changes by week, show last 8 weeks
+  const weeks: { label: string; count: number }[] = [];
+  const now = new Date();
+  for (let i = 7; i >= 0; i--) {
+    const start = new Date(now);
+    start.setDate(start.getDate() - i * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    const label = start.toLocaleDateString("en-AU", { month: "short", day: "numeric" });
+    const count = changes.filter((c) => {
+      const d = new Date(c.detected_at);
+      return d >= start && d < end;
+    }).length;
+    weeks.push({ label, count });
+  }
+
+  const maxCount = Math.max(...weeks.map((w) => w.count), 1);
+  const barHeight = 48;
+
+  return (
+    <div className="flex items-end gap-1 h-14" title="Changes per week (last 8 weeks)">
+      {weeks.map((w, i) => (
+        <div
+          key={i}
+          className="flex flex-col items-center gap-1 flex-1"
+        >
+          <div
+            className="w-full bg-accent/40 rounded-sm hover:bg-accent/70 transition-colors"
+            style={{ height: `${(w.count / maxCount) * barHeight}px`, minHeight: w.count > 0 ? 4 : 0 }}
+          />
+          <span className="text-[9px] text-foreground/30 hidden sm:block truncate w-full text-center">
+            {w.count > 0 ? w.count : ""}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }

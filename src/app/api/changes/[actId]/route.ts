@@ -35,6 +35,7 @@ export async function GET(
           sections_changed: [],
           affected_groups: JSON.parse(row.affected_groups || "[]"),
           change_count: row.change_count,
+          brief: row.brief ? JSON.parse(row.brief) : null,
           from_label: row.from_label,
           to_label: row.to_label,
         };
