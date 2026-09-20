@@ -103,11 +103,11 @@ function initSchema() {
 
 // Seed data — real Acts from both jurisdictions
 function seedIfEmpty() {
-  const count: { cnt: number } = db!.prepare("SELECT COUNT(*) as cnt FROM acts").get() as unknown as { cnt: number };
+  const count: { cnt: number } = db!
+    .prepare("SELECT COUNT(*) as cnt FROM acts")
+    .get() as unknown as { cnt: number };
   if (count.cnt === 0) {
-    const insert = db!.prepare(
-      `INSERT INTO acts (title, url, jurisdiction) VALUES (?, ?, ?)`
-    );
+    const insert = db!.prepare(`INSERT INTO acts (title, url, jurisdiction) VALUES (?, ?, ?)`);
 
     const federalActs = [
       {
@@ -197,15 +197,13 @@ export function setSetting(key: string, value: string): void {
   const d = connectDB();
   d.prepare(
     `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
   ).run(key, value);
 }
 
 export function getAllSettings(): Record<string, string> {
   const d = connectDB();
-  const rows = d.prepare("SELECT key, value FROM settings").all() as Array<
-    Record<string, unknown>
-  >;
+  const rows = d.prepare("SELECT key, value FROM settings").all() as Array<Record<string, unknown>>;
   return Object.fromEntries(rows.map((r) => [r.key as string, r.value as string]));
 }
 

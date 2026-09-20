@@ -32,25 +32,24 @@ export default function DiffViewer({
 }: DiffViewerProps) {
   const rows = useMemo(
     () => buildSideBySide(oldText, newText, showContextLines, maxLines),
-    [oldText, newText, showContextLines, maxLines]
+    [oldText, newText, showContextLines, maxLines],
   );
 
   if (!oldText && !newText) {
-    return (
-      <p className="text-sm text-foreground/40 italic">
-        No content available for comparison
-      </p>
-    );
+    return <p className="text-sm text-foreground/40 italic">No content available for comparison</p>;
   }
 
-  const hasChanges = rows.some(
-    (r) => r.left.kind === "del" || r.right.kind === "add"
-  );
+  const hasChanges = rows.some((r) => r.left.kind === "del" || r.right.kind === "add");
 
   if (!hasChanges) {
     return (
       <div className="text-center py-8 text-sm text-foreground/40">
-        <svg className="w-8 h-8 mx-auto mb-2 text-vic" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg
+          className="w-8 h-8 mx-auto mb-2 text-vic"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
         No differences detected between these versions.
@@ -97,11 +96,7 @@ function DiffPane({ rows, position }: { rows: SideRow[]; position: "left" | "rig
         }
         const cell = position === "left" ? row.left : row.right;
         const lineClass =
-          cell.kind === "add"
-            ? "diff-added"
-            : cell.kind === "del"
-              ? "diff-removed"
-              : "";
+          cell.kind === "add" ? "diff-added" : cell.kind === "del" ? "diff-removed" : "";
         return (
           <div key={i} className={`flex ${lineClass} transition-colors`}>
             <span className="diff-line-number">{cell.num ?? ""}</span>
@@ -127,7 +122,7 @@ function buildSideBySide(
   oldText: string,
   newText: string,
   context: number,
-  maxLines: number
+  maxLines: number,
 ): SideRow[] {
   const parts = diffLines(oldText, newText);
 
@@ -154,11 +149,7 @@ function buildSideBySide(
   const keep: boolean[] = new Array(toks.length).fill(false);
   for (let i = 0; i < toks.length; i++) {
     if (toks[i].kind !== "same") {
-      for (
-        let j = Math.max(0, i - context);
-        j <= Math.min(toks.length - 1, i + context);
-        j++
-      ) {
+      for (let j = Math.max(0, i - context); j <= Math.min(toks.length - 1, i + context); j++) {
         keep[j] = true;
       }
     }
