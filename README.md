@@ -2,172 +2,141 @@
 
 # Legislation Monitor
 
-Automated legislative change detection for Australian federal and Victorian state acts. Scans, compares, and surfaces what changed - so you don't have to read through every revision yourself.
+### Change detection for Commonwealth and Victorian legislation, with a side-by-side diff of every amendment
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![2 jurisdictions](https://img.shields.io/badge/jurisdictions-Cth_and_Vic-0969da?style=for-the-badge) ![22 tests](https://img.shields.io/badge/tests-22-0969da?style=for-the-badge) ![local SQLite storage](https://img.shields.io/badge/storage-local_SQLite-8250df?style=for-the-badge) ![Next.js 16](https://img.shields.io/badge/Next.js-16-57606a?style=for-the-badge&logo=nextdotjs&logoColor=white) ![MIT licence](https://img.shields.io/badge/licence-MIT-57606a?style=for-the-badge)
 
 </div>
 
-**What it does not do:** it is a change-detection tool, not a legal research or advice tool - it shows you what text changed, not what the change means. It covers federal and Victorian legislation only, keeps everything in a local SQLite file (no accounts, no sync), and has no built-in push notifications: periodic checking is an external cron job calling the check endpoint (see [Adding Alerts](#adding-alerts)).
+<br>
 
-**Maturity:** working prototype. It runs locally (`npm run dev`) against the two official registers; the scrapers are tuned to the current markup of each site and will need maintenance if those registers change.
+> Amendments reach the official registers as new compilations, and finding what moved means reading the new text against the old.  Legislation Monitor keeps a local snapshot of each Act it watches, fetches the Act again on request, and shows a side-by-side diff when the text changes.
 
----
+<br>
 
-## Overview
+## What it is
 
-Legislation Monitor watches Australian Acts of Parliament for amendments, repeals, and insertions. It scrapes the official legislation registers for federal and Victorian acts, detects content changes via cryptographic hashing, and presents side-by-side diffs so you can see exactly what the law now says versus how it used to read.
+A local web app and REST API that watches Acts of Parliament for amendments, repeals, and insertions.  It scrapes the Federal Register of Legislation and the Victorian legislation site, hashes the text it extracts, and flags any difference from the last stored version.
 
-### What it does
+> [!IMPORTANT]
+> It shows what text changed, not what the change means, so it is not a legal research or advice tool.  It covers Commonwealth and Victorian legislation only.  Everything lives in a local SQLite file, with no accounts and no sync.  It sends no notifications of its own, so periodic checking needs an external cron job that calls the check endpoint (see [Adding alerts](#adding-alerts)).
 
-| Feature | Description |
+It is a working prototype.  It runs locally against both official registers.  The scrapers follow the current markup of each site and will need maintenance when either register changes.
+
+<br>
+
+## Results
+
+The app runs against both live registers, and 22 Vitest unit tests cover the diff engine, the scrapers, and the table-of-contents parser that makes diffs precise to the section.  The repository publishes no measurement of how reliably it catches real amendments over time.
+
+<br>
+
+## How it works
+
+| Feature | What happens |
 |---|---|
-| **Act Tracking** | Add any Act of Parliament (federal or Victorian) and get an instant baseline snapshot stored locally in SQLite. |
-| **Change Detection** | Re-fetches an Act's HTML when a check is triggered (the **Check** button, or `POST /api/acts/:id/check`), hashes the extracted text, and flags anything that differs from the last known version. Periodic checking is left to an external cron job (see [Adding Alerts](#adding-alerts)). |
-| **Side-by-Side Diffs** | When changes are detected, a rich diff viewer renders inserted, deleted, and modified sections so you can scan updates in seconds. |
-| **Change Briefs (optional)** | When an OpenAI-compatible LLM endpoint is configured (Settings page or `POST /api/settings`), each detected change gets a stakeholder-facing brief - summary, key changes, who is affected, why it matters, significance. Without an LLM, a deterministic heuristic produces the brief instead, and every brief records which one produced it. |
-| **Dashboard** | A single-page dashboard shows how many Acts you're watching, jurisdiction breakdown, and the total number of new changes in the last 7 days. |
-| **API-First** | Every feature is backed by a RESTful API (`/api/acts`, `/api/changes/:actId`, etc.) for easy integration with alerts or third-party tools. |
+| **Act tracking** | Adding an Act of Parliament, Commonwealth or Victorian, stores a baseline snapshot in SQLite straight away. |
+| **Change detection** | A check (the **Check** button, or `POST /api/acts/:id/check`) fetches the Act's HTML again, hashes the extracted text, and flags anything that differs from the last stored version.  Periodic checking is left to an external cron job. |
+| **Side-by-side diffs** | The diff viewer marks inserted, deleted, and modified sections. |
+| **Change briefs** | With an OpenAI-compatible LLM endpoint configured (on the Settings page or through `POST /api/settings`), each detected change gets a brief with a summary, the key changes, who is affected, why it matters, and how significant it is.  Without an LLM, a deterministic heuristic writes the brief instead, and every brief records which of the two produced it. |
+| **Dashboard** | One page shows how many Acts are being watched, the split by jurisdiction, and the number of new changes in the last seven days. |
+| **REST API** | Every feature has an endpoint, such as `/api/acts` and `/api/changes/:actId`, for alerts or other tools to call. |
 
-## Tech Stack
+### Scrapers
 
-| Layer | Technology |
+Each jurisdiction has its own scraper, tuned to the structure of its register.
+
+| Register | Approach |
 |---|---|
-| **Framework** | [Next.js 16](https://nextjs.org/) (App Router) |
-| **Language** | [TypeScript 5](https://www.typescriptlang.org/) |
-| **Styling** | [Tailwind CSS 4](https://tailwindcss.com/) |
-| **Database** | [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (local SQLite file with WAL mode) |
-| **Scraping** | [Cheerio](https://cheerio.js.org/) - server-side jQuery for HTML parsing |
-| **Image Processing** | [Sharp](https://sharp.pixelplumbing.com/) |
+| **Federal** ([legislation.gov.au](https://www.legislation.gov.au)) | Parses the server-rendered HTML with Cheerio and extracts the page title and main content.  If the primary selectors miss, it falls back through several others. |
+| **Victorian** ([legislation.vic.gov.au](https://www.legislation.vic.gov.au)) | The register runs on the Tide framework.  The scraper tries a direct fetch, then the listing page, then search.  When content is rendered client-side and missing from the first HTML response, it falls back to heuristics based on the URL. |
 
-## Project Structure
-
-```
-legislation-monitor/
-├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── api/                # REST endpoints
-│   │   │   ├── acts/           # CRUD for watched Acts
-│   │   │   └── changes/        # Diff generation & change history
-│   │   ├── acts/[id]/          # Per-Act detail + diff pages
-│   │   ├── docs/               # Swagger UI (serves the OpenAPI spec)
-│   │   ├── globals.css         # Tailwind layer styles
-│   │   ├── layout.tsx          # Root layout (fonts, metadata)
-│   │   ├── page.tsx            # Dashboard
-│   │   └── settings/           # LLM endpoint settings page
-│   ├── components/             # Reusable React components
-│   │   ├── ActCard.tsx
-│   │   ├── AddActForm.tsx
-│   │   ├── CheckButton.tsx
-│   │   └── DiffViewer.tsx
-│   ├── lib/                    # Business logic
-│   │   ├── db.ts               # SQLite schema, seeding, queries
-│   │   ├── diff.ts             # Text-diff engine
-│   │   ├── llm.ts              # Optional LLM change briefs (heuristic fallback)
-│   │   ├── scrapers.ts         # Federal & Victorian web scrapers
-│   │   └── structure.ts        # TOC parsing for section-precise diffs
-│   └── types/                  # TypeScript declarations
-├── .data/                      # Local SQLite database (gitignored)
-├── public/                     # Static assets
-└── package.json
-```
-
-## Getting Started
-
-### Prerequisites
-
-- **Node.js** 18+ (v20 recommended)
-- A modern browser (Chrome, Firefox, Edge, Safari)
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/Danielkgr/legislation-monitor.git
-cd legislation-monitor
-
-# Install dependencies
-npm install
-
-# Run the development server
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
+Both scrapers retry twice, waiting 1 s and then 2 s, with a 30-second timeout on each attempt.  Both hash the normalised text with SHA-256 to detect change.
 
 ### Database
 
-On first launch, the application creates a local SQLite database at `.data/legislation.db` with the following tables:
+On first launch the app creates a SQLite database at `.data/legislation.db`, in WAL mode so reads stay safe while a scrape is running.
 
 | Table | Purpose |
 |---|---|
-| `acts` | Metadata about watched legislation (title, URL, jurisdiction) |
-| `versions` | Snapshots of Act text at each check (with content hashes) |
-| `changes` | Records of detected differences between versions (including the change brief) |
-| `settings` | Key-value store for runtime settings (LLM endpoint config, pending-changes counter) |
-| `content_diffs` | Per-line diff data for the viewer (created on the first detected change) |
+| `acts` | Metadata for each watched Act, such as title, URL, and jurisdiction |
+| `versions` | A snapshot of an Act's text at each check, with its content hash |
+| `changes` | Each detected difference between versions, including its change brief |
+| `settings` | Key-value store for runtime settings, such as the LLM endpoint and the pending-changes counter |
+| `content_diffs` | Line-by-line diff data for the viewer, created on the first detected change |
 
-The database uses WAL mode for safe concurrent reads during scraping.
+<br>
 
-### Seed Data
+## Quick start
 
-Five Acts are seeded automatically on first run:
+You need Node.js 20.9 or later, which Next.js 16 requires, and a current browser.
 
-**Federal**
-- Privacy Act 1988
-- Corporations Act 2001
-- Work Health and Safety Act 2011
+```bash
+git clone https://github.com/Danielkgr/legislation-monitor.git
+cd legislation-monitor
+npm install
+npm run dev
+```
 
-**Victorian**
-- Crimes Act 1958
-- Occupiers Liability Act 1983
+Open [http://localhost:3000](http://localhost:3000) for the dashboard.  Five Acts are seeded on the first run.
 
-## API Reference
-
-### OpenAPI Specification
-
-A complete [OpenAPI 3.0](https://spec.openapis.org/oas/v3.0.3) specification is provided for programmatic consumption:
-
-| Format | URL |
+| Jurisdiction | Seeded Acts |
 |---|---|
-| **Interactive Docs** | [`/docs`](http://localhost:3000/docs) - Swagger UI with try-it-out, code samples, and schema explorer |
-| **Raw Spec (JSON)** | [`/openapi.json`](http://localhost:3000/openapi.json) - Download or curl the specification directly |
+| **Commonwealth** | *Privacy Act 1988*, *Corporations Act 2001*, *Work Health and Safety Act 2011* |
+| **Victoria** | *Crimes Act 1958*, *Occupiers Liability Act 1983* |
 
-You can import the spec into [Postman](https://www.postman.com/), [Insomnia](https://insomnia.rest/), [Hoppscotch](https://hoppscotch.io/), or any other API tool for quick exploration.
+<br>
 
-### Endpoint Summary
+## Reference
 
-| Method | Endpoint | Description |
+### Scripts
+
+```bash
+npm run dev       # development server on localhost:3000
+npm run build     # production build to .next/
+npm run start     # run the production build locally
+npm run lint      # ESLint
+npm test          # Vitest unit tests
+```
+
+### API
+
+A full [OpenAPI 3.0](https://spec.openapis.org/oas/v3.0.3) specification ships with the repository at `public/openapi.json`.
+
+| Format | Where |
+|---|---|
+| **Interactive docs** | [`/docs`](http://localhost:3000/docs), a Swagger UI with try-it-out requests, code samples, and a schema explorer |
+| **Raw spec** | [`/openapi.json`](http://localhost:3000/openapi.json), also served by `GET /api/openapi` |
+
+| Method | Endpoint | What it does |
 |---|---|---|
-| `GET` | `/api/acts` | List all watched Acts with change summary |
-| `POST` | `/api/acts` | Add a new Act to watch (see schema below) |
-| `DELETE` | `/api/acts/:id` | Remove an Act from monitoring |
-| `GET` | `/api/acts/:id` | Get Act details and metadata |
-| `POST` | `/api/acts/:id/check` | Trigger an immediate scrape & comparison |
-| `GET` | `/api/acts/:id/versions` | List all stored versions for an Act |
-| `GET` | `/api/changes/:actId` | Get detected changes with summaries, affected groups and briefs |
-| `GET` | `/api/changes/:actId/export` | Export an Act's changes (`?format=json` default, `?format=md` for a Markdown report) |
-| `GET` | `/api/changes/count` | Current pending-changes counter |
-| `POST` | `/api/changes/ack` | Reset the pending-changes counter |
-| `GET` / `POST` | `/api/settings` | Read / update LLM endpoint settings |
-| `GET` | `/api/openapi` | The OpenAPI specification (same document as `/openapi.json`) |
+| `GET` | `/api/acts` | Lists every watched Act with a change summary |
+| `POST` | `/api/acts` | Adds an Act to watch |
+| `DELETE` | `/api/acts/:id` | Stops watching an Act |
+| `GET` | `/api/acts/:id` | Returns an Act's details and metadata |
+| `POST` | `/api/acts/:id/check` | Scrapes and compares the Act immediately |
+| `GET` | `/api/acts/:id/versions` | Lists every stored version of an Act |
+| `GET` | `/api/changes/:actId` | Returns detected changes with summaries, affected groups, and briefs |
+| `GET` | `/api/changes/:actId/export` | Exports an Act's changes as JSON by default, or as a Markdown report with `?format=md` |
+| `GET` | `/api/changes/count` | Returns the pending-changes counter |
+| `POST` | `/api/changes/ack` | Resets the pending-changes counter |
+| `GET`, `POST` | `/api/settings` | Reads or updates the LLM endpoint settings |
+| `GET` | `/api/openapi` | Returns the OpenAPI specification |
 
-### Request / Response Schemas
+Every endpoint returns JSON.  Errors come back as `{ "error": "message" }` with a matching HTTP status of 400, 404, 409, or 500.
 
 <details>
-<summary><strong>Add Act</strong></summary>
+<summary><strong>Add an Act</strong> (<code>POST /api/acts</code>)</summary>
 
 ```jsonc
-// POST /api/acts
+// Request
 {
-  "title": "My Act 2025",          // required — human-readable title
-  "url": "https://.../Details/C2025C00XXX",  // required — legislation URL
-  "jurisdiction": "federal"         // optional — "federal" (default) or "vic"
+  "title": "My Act 2025",                       // required, human-readable title
+  "url": "https://.../Details/C2025C00XXX",     // required, legislation URL
+  "jurisdiction": "federal"                     // optional, "federal" (default) or "vic"
 }
 
-// Response 201 — Act created
+// Response 201, Act created
 {
   "id": 6,
   "title": "My Act 2025",
@@ -177,30 +146,32 @@ You can import the spec into [Postman](https://www.postman.com/), [Insomnia](htt
   "updated_at": "2026-08-15T10:00:00Z"
 }
 
-// Response 409 — Duplicate URL
+// Response 409, duplicate URL
 { "error": "This Act is already being watched", "id": 1 }
 ```
+
 </details>
 
 <details>
-<summary><strong>Check for Changes (POST /api/acts/:id/check)</strong></summary>
+<summary><strong>Check for changes</strong> (<code>POST /api/acts/:id/check</code>)</summary>
 
 ```jsonc
-// Response 200 — Success
+// Response 200
 {
   "success": true,
   "hasChange": false,    // true if a new version was detected
-  "change": null,        // change record when hasChange is true
+  "change": null,        // the change record when hasChange is true
   "new_version_count": 12
 }
 ```
+
 </details>
 
 <details>
-<summary><strong>List Changes (GET /api/changes/:actId)</strong></summary>
+<summary><strong>List changes</strong> (<code>GET /api/changes/:actId</code>)</summary>
 
 ```jsonc
-// Response 200 — Array of changes
+// Response 200, an array of changes
 [
   {
     "id": 5,
@@ -215,101 +186,94 @@ You can import the spec into [Postman](https://www.postman.com/), [Insomnia](htt
   }
 ]
 ```
+
 </details>
 
-### Response Envelope
-
-Every endpoint returns JSON. Error responses use `{ "error": "message" }` with an appropriate HTTP status code (400, 404, 409, 500).
-
-## Scrapers
-
-The application maintains two scrapers tuned to the structure of each jurisdiction's legislation register:
-
-### Federal (legislation.gov.au)
-
-- Parses server-rendered HTML with Cheerio.
-- Extracts page title and main content area text.
-- Includes a fallback chain that graces-degrades through multiple selectors if primary ones miss.
-
-### Victorian (legislation.vic.gov.au)
-
-- Targets the [Tide](https://github.com/Alfresco/tide) framework used by the Victorian register.
-- Tries three resolution patterns (direct fetch → listing page → search) in order of specificity.
-- Falls back to URL-basename heuristics when client-rendered content isn't available in the initial HTML.
-
-Both scrapers implement:
-- **Exponential-backoff retry** (2 retries, 1s / 2s delays)
-- **30-second fetch timeout** per attempt
-- **Content hashing** (SHA-256 hex digest of normalised text, for change detection)
-
-## Available Scripts
+### Running as an API server
 
 ```bash
-npm run dev       # Start development server (localhost:3000)
-npm run build     # Production build to .next/
-npm run start     # Run production build locally
-npm run lint      # ESLint check
-```
-
-### Running as an External API Server
-
-The Legislation Monitor doubles as an API backend for external consumption. The OpenAPI specification ships with the repository (`public/openapi.json`) and is served both statically at `/openapi.json` and by the `/api/openapi` endpoint.
-
-**Development (local):**
-```bash
+# Development
 npm install
 npm run dev
-# → Dashboard: http://localhost:3000
-# → Swagger UI docs:  http://localhost:3000/docs
-# → Raw spec (JSON):  http://localhost:3000/openapi.json
-```
+# Dashboard      http://localhost:3000
+# Swagger UI     http://localhost:3000/docs
+# Raw spec       http://localhost:3000/openapi.json
 
-**Production (standalone):**
-```bash
+# Production
 npm install
 npm run build
 npm start
-# API available at http://localhost:3000/api/*
+# API at http://localhost:3000/api/*
 ```
 
-The database (`legislation.db`) lives at `.data/legislation.db` within the working directory. Copy or mount it for persistent state across restarts.
+The database lives at `.data/legislation.db` inside the working directory.  Copy or mount it to keep state across restarts.
 
-**Using the spec in other tools:**
-- **Postman**: `Import → Link` → paste `https://raw.githubusercontent.com/Danielkgr/legislation-monitor/main/public/openapi.json`
-- **Insomnia / Hoppscotch**: Import → OpenAPI → paste the same URL or local file path
-- **Code generation**: `npx @scarf/scarf --url https://raw.githubusercontent.com/Danielkgr/legislation-monitor/main/public/openapi.json --output ./src/api/generated` (or use [openapi-typescript](https://github.com/colinhacks/openapi-typescript))
+To use the spec in another tool, import `https://raw.githubusercontent.com/Danielkgr/legislation-monitor/main/public/openapi.json` into Postman (Import, then Link), Insomnia, or Hoppscotch.  To generate a typed client, point [openapi-typescript](https://github.com/openapi-ts/openapi-typescript) at the same URL.
 
-## Configuration
+### Configuration
 
-Edit `next.config.ts` for framework-level settings (rewrites, redirects, environment variables). The scraper User-Agent is defined inline in `src/lib/scrapers.ts` and can be customized:
+Framework settings, such as rewrites, redirects, and environment variables, live in `next.config.ts`.  The scraper's User-Agent is set inline in `src/lib/scrapers.ts`.  Change it to your own URL if you run a copy.
 
 ```typescript
-// src/lib/scrapers.ts — change this to your own URL
+// src/lib/scrapers.ts
 "User-Agent": "LegislationMonitor/1.0 (+https://github.com/Danielkgr/legislation-monitor)"
 ```
 
-## Extending
-
-### Adding a New Jurisdiction
+### Adding a jurisdiction
 
 1. Add the new jurisdiction identifier to the `jurisdiction` type in `src/lib/db.ts`.
-2. Create a new `scrapeNewJurisdiction()` function in `src/lib/scrapers.ts` following the Federal/Vic patterns.
-3. Update the `extractVersionLabel()` helper for any version-number heuristics specific to that jurisdiction's URLs.
+2. Write a `scrapeNewJurisdiction()` function in `src/lib/scrapers.ts`, following the federal and Victorian patterns.
+3. Update `extractVersionLabel()` for any version-number patterns in that jurisdiction's URLs.
 
-### Adding Alerts
+### Adding alerts
 
-The `/api/changes/:actId` endpoint returns change data as JSON. You can build a lightweight notification layer by:
+Alerts sit outside the app.  A cron job, such as Vercel Cron, calls `POST /api/acts/:id/check` for each Act and looks for `hasChange: true` in the response.  It can instead poll `GET /api/acts` for each Act's `recent_changes` count, or `GET /api/changes/count` for the pending total.  When something has changed, the job sends the email, Slack message, or push notification.
 
-1. Polling or using a cron job (e.g., Vercel Cron) to call `/api/acts/:id/check`.
-2. Checking the response for `hasChange: true` (or polling `GET /api/acts` and checking each Act's `recent_changes` count, or `GET /api/changes/count` for the pending total).
-3. Sending emails, Slack messages, or Push notifications when changes are detected.
+### Stack
 
-## License
+| Layer | Technology |
+|---|---|
+| **Framework** | [Next.js 16](https://nextjs.org/) with the App Router |
+| **Language** | [TypeScript 5](https://www.typescriptlang.org/) |
+| **Styling** | [Tailwind CSS 4](https://tailwindcss.com/) |
+| **Database** | [better-sqlite3](https://github.com/WiseLibs/better-sqlite3), a local SQLite file in WAL mode |
+| **Scraping** | [Cheerio](https://cheerio.js.org/) for server-side HTML parsing |
+| **Diffing** | [jsdiff](https://github.com/kpdecker/jsdiff) |
+| **API docs** | [Swagger UI](https://github.com/swagger-api/swagger-ui) |
+| **Tests** | [Vitest](https://vitest.dev/) |
 
-MIT - see [LICENSE](LICENSE) for details.
+<br>
 
-## Acknowledgements
+## Layout
 
-- Data sourced from official government registers:
-  - [Federal Register of Legislation](https://www.legislation.gov.au)
-  - [Victorian Legislation](https://www.legislation.vic.gov.au)
+```text
+legislation-monitor/
+  src/
+    app/                    Next.js App Router
+      api/
+        acts/               Create, read, and delete watched Acts
+        changes/            Diff generation and change history
+      acts/[id]/            Detail and diff pages for each Act
+      docs/                 Swagger UI, serving the OpenAPI spec
+      globals.css           Tailwind layer styles
+      layout.tsx            Root layout (fonts, metadata)
+      page.tsx              Dashboard
+      settings/             LLM endpoint settings page
+    components/             ActCard, AddActForm, CheckButton, DiffViewer
+    lib/
+      db.ts                 SQLite schema, seeding, and queries
+      diff.ts               Text-diff engine
+      llm.ts                Optional LLM change briefs, with the heuristic fallback
+      scrapers.ts           Federal and Victorian scrapers
+      structure.ts          Table-of-contents parsing for section-precise diffs
+    types/                  TypeScript declarations
+  .data/                    Local SQLite database (ignored by git)
+  public/                   Static assets and openapi.json
+  package.json
+```
+
+<br>
+
+## Licence
+
+MIT.  See [LICENSE](LICENSE).  Legislation text comes from the official registers, the [Federal Register of Legislation](https://www.legislation.gov.au) and [Victorian Legislation](https://www.legislation.vic.gov.au).
