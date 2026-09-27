@@ -53,10 +53,20 @@ body {
 }
 
 /* Custom scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2a3143; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3b4459; }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3143;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b4459;
+}
 
 /* Dark dropdown lists for <select> */
 select option {
@@ -95,32 +105,60 @@ select option {
   flex-shrink: 0;
 }
 
-.diff-added .diff-line-marker { color: var(--color-vic); }
-.diff-removed .diff-line-marker { color: var(--color-danger); }
+.diff-added .diff-line-marker {
+  color: var(--color-vic);
+}
+.diff-removed .diff-line-marker {
+  color: var(--color-danger);
+}
 
 /* Animations */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
-.animate-fade-in { animation: fadeInUp 0.35s ease-out both; }
-.animate-delay-100 { animation-delay: 100ms; }
-.animate-delay-200 { animation-delay: 200ms; }
-.animate-delay-300 { animation-delay: 300ms; }
+.animate-fade-in {
+  animation: fadeInUp 0.35s ease-out both;
+}
+.animate-delay-100 {
+  animation-delay: 100ms;
+}
+.animate-delay-200 {
+  animation-delay: 200ms;
+}
+.animate-delay-300 {
+  animation-delay: 300ms;
+}
 
 @keyframes pulse-ring {
-  0% { transform: scale(0.85); opacity: 1; }
-  100% { transform: scale(2.2); opacity: 0; }
+  0% {
+    transform: scale(0.85);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
 }
 
 .status-checking::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -6px;
   border-radius: 50%;
@@ -130,7 +168,10 @@ select option {
 
 /* Card hover — lift + accent border glow */
 .card-lift {
-  transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
 }
 .card-lift:hover {
   transform: translateY(-2px);
@@ -180,5 +221,7 @@ select option {
 
 /* Print styles for reports */
 @media print {
-  .no-print { display: none !important; }
+  .no-print {
+    display: none !important;
+  }
 }
