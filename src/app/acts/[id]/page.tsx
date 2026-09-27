@@ -151,12 +151,8 @@ export default function ActDetail() {
     }
   };
 
-  const jurisdictionBadge =
-    act?.jurisdiction === "federal"
-      ? "badge-federal"
-      : "badge-vic";
-  const jurisdictionLabel =
-    act?.jurisdiction === "federal" ? "Federal" : "Victoria";
+  const jurisdictionBadge = act?.jurisdiction === "federal" ? "badge-federal" : "badge-vic";
+  const jurisdictionLabel = act?.jurisdiction === "federal" ? "Federal" : "Victoria";
 
   if (loading) {
     return (
@@ -180,7 +176,9 @@ export default function ActDetail() {
     return (
       <div className="max-w-5xl mx-auto px-4 py-24 text-center">
         <h2 className="text-xl font-semibold mb-2">Act not found</h2>
-        <Link href="/" className="text-accent hover:underline">← Back to dashboard</Link>
+        <Link href="/" className="text-accent hover:underline">
+          ← Back to dashboard
+        </Link>
       </div>
     );
   }
@@ -189,9 +187,17 @@ export default function ActDetail() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Breadcrumb + Title */}
       <div className="mb-8">
-        <Link href="/" className="text-sm text-foreground/40 hover:text-foreground/70 transition-colors inline-flex items-center gap-1 mb-4">
+        <Link
+          href="/"
+          className="text-sm text-foreground/40 hover:text-foreground/70 transition-colors inline-flex items-center gap-1 mb-4"
+        >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
           </svg>
           All watched Acts
         </Link>
@@ -200,7 +206,9 @@ export default function ActDetail() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-2 flex-wrap">
               <h1 className="text-2xl font-bold tracking-tight truncate">{act.title}</h1>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${jurisdictionBadge}`}>
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${jurisdictionBadge}`}
+              >
                 {jurisdictionLabel}
               </span>
             </div>
@@ -208,15 +216,33 @@ export default function ActDetail() {
             <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-foreground/40">
               <span className="inline-flex items-center gap-1.5">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V7c0-.6-.4-1-1-1H5a1 1 0 00-1 1z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M4 7v10c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V7c0-.6-.4-1-1-1H5a1 1 0 00-1 1z"
+                  />
                 </svg>
                 {act.version_count} version{act.version_count !== 1 ? "s" : ""} tracked
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
-                Last checked: {act.last_checked ? new Date(act.last_checked).toLocaleString("en-AU", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Never"}
+                Last checked:{" "}
+                {act.last_checked
+                  ? new Date(act.last_checked).toLocaleString("en-AU", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "Never"}
               </span>
             </div>
           </div>
@@ -228,7 +254,12 @@ export default function ActDetail() {
                 title="Export changes"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a2 2 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a2 2 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
                 </svg>
               </button>
               <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-surface border border-white/10 rounded-lg shadow-xl overflow-hidden z-20">
@@ -257,7 +288,12 @@ export default function ActDetail() {
               title="View on legislation site"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                />
               </svg>
             </a>
             <button
@@ -267,7 +303,12 @@ export default function ActDetail() {
               title="Remove from watch list"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
               </svg>
             </button>
           </div>
@@ -279,8 +320,18 @@ export default function ActDetail() {
         <section className="mb-10 animate-fade-in">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <svg className="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              <svg
+                className="w-5 h-5 text-accent"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                />
               </svg>
               Recent Changes ({changes.length})
             </h2>
@@ -298,8 +349,18 @@ export default function ActDetail() {
       {/* Version Timeline */}
       <section className="animate-fade-in animate-delay-200">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="w-5 h-5 text-primary"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           Version History ({versions.length})
         </h2>
@@ -313,7 +374,9 @@ export default function ActDetail() {
               <span className="text-sm font-medium text-foreground/60">Compare versions:</span>
               <select
                 value={selectedVersionA || ""}
-                onChange={(e) => setSelectedVersionA(e.target.value ? parseInt(e.target.value, 10) : null)}
+                onChange={(e) =>
+                  setSelectedVersionA(e.target.value ? parseInt(e.target.value, 10) : null)
+                }
                 className="px-3 py-1.5 border border-white/10 bg-background/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/60"
               >
                 <option value="">Select version...</option>
@@ -326,7 +389,9 @@ export default function ActDetail() {
               <span className="text-foreground/30">→</span>
               <select
                 value={selectedVersionB || ""}
-                onChange={(e) => setSelectedVersionB(e.target.value ? parseInt(e.target.value, 10) : null)}
+                onChange={(e) =>
+                  setSelectedVersionB(e.target.value ? parseInt(e.target.value, 10) : null)
+                }
                 className="px-3 py-1.5 border border-white/10 bg-background/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/60"
               >
                 <option value="">Select version...</option>
@@ -388,22 +453,26 @@ function SignificanceBadge({ value }: { value: number }) {
       title="Significance score (0-10)"
     >
       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+        />
       </svg>
       {value}/10
     </span>
   );
 }
 
-function ChangeCard({ change, versionMap }: {
-  change: ChangeRecord;
-  versionMap: Version[];
-}) {
+function ChangeCard({ change, versionMap }: { change: ChangeRecord; versionMap: Version[] }) {
   const fromLabel = change.version_from_id
-    ? (versionMap.find((v) => v.id === change.version_from_id)?.version_label || `v${change.version_from_id}`)
+    ? versionMap.find((v) => v.id === change.version_from_id)?.version_label ||
+      `v${change.version_from_id}`
     : "—";
   const toLabel = change.version_to_id
-    ? (versionMap.find((v) => v.id === change.version_to_id)?.version_label || `v${change.version_to_id}`)
+    ? versionMap.find((v) => v.id === change.version_to_id)?.version_label ||
+      `v${change.version_to_id}`
     : "—";
   const brief = change.brief;
 
@@ -411,7 +480,9 @@ function ChangeCard({ change, versionMap }: {
     <div className="bg-surface/70 rounded-xl border border-white/[0.06] p-5 card-lift">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-xs text-foreground/40 font-mono">{change.detected_at.slice(0, 10)}</span>
+          <span className="text-xs text-foreground/40 font-mono">
+            {change.detected_at.slice(0, 10)}
+          </span>
           <span className="inline-flex items-center gap-1 text-xs text-foreground/40 font-mono">
             {fromLabel} <span className="text-faint">→</span> {toLabel}
           </span>
@@ -455,13 +526,17 @@ function ChangeCard({ change, versionMap }: {
         <div className="grid sm:grid-cols-2 gap-3 mb-3">
           {brief.whoIsAffected && (
             <div className="p-3 bg-background/40 rounded-lg border border-white/[0.05]">
-              <p className="text-[11px] uppercase tracking-wide text-faint font-medium mb-1">Who&apos;s affected</p>
+              <p className="text-[11px] uppercase tracking-wide text-faint font-medium mb-1">
+                Who&apos;s affected
+              </p>
               <p className="text-sm text-foreground/70">{brief.whoIsAffected}</p>
             </div>
           )}
           {brief.whyItMatters && (
             <div className="p-3 bg-background/40 rounded-lg border border-white/[0.05]">
-              <p className="text-[11px] uppercase tracking-wide text-faint font-medium mb-1">Why it matters</p>
+              <p className="text-[11px] uppercase tracking-wide text-faint font-medium mb-1">
+                Why it matters
+              </p>
               <p className="text-sm text-foreground/70">{brief.whyItMatters}</p>
             </div>
           )}
@@ -473,7 +548,10 @@ function ChangeCard({ change, versionMap }: {
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <span className="text-xs text-foreground/40 font-medium">Affects:</span>
           {change.affected_groups.map((group) => (
-            <span key={group} className="px-2 py-0.5 bg-background/50 border border-white/[0.06] rounded-md text-xs text-muted">
+            <span
+              key={group}
+              className="px-2 py-0.5 bg-background/50 border border-white/[0.06] rounded-md text-xs text-muted"
+            >
               {group}
             </span>
           ))}
@@ -488,7 +566,10 @@ function ChangeCard({ change, versionMap }: {
           </summary>
           <div className="mt-2 space-y-1 max-h-40 overflow-auto">
             {change.sections_changed.map((section, i) => (
-              <p key={i} className="text-xs font-mono text-foreground/50 px-3 py-1.5 bg-background/50 rounded-md border-l-2 border-accent/40">
+              <p
+                key={i}
+                className="text-xs font-mono text-foreground/50 px-3 py-1.5 bg-background/50 rounded-md border-l-2 border-accent/40"
+              >
                 {truncate(section, 120)}
               </p>
             ))}
@@ -517,17 +598,23 @@ function VersionItem({
   const isLatest = index === 0;
 
   return (
-    <div className={`flex items-center gap-4 p-4 bg-surface/70 rounded-xl border transition-colors ${isLatest ? "border-vic/25 bg-vic/[0.04]" : "border-white/[0.06] hover:border-white/15"}`}>
+    <div
+      className={`flex items-center gap-4 p-4 bg-surface/70 rounded-xl border transition-colors ${isLatest ? "border-vic/25 bg-vic/[0.04]" : "border-white/[0.06] hover:border-white/15"}`}
+    >
       {/* Timeline dot */}
       <div className="flex flex-col items-center shrink-0">
-        <div className={`w-3 h-3 rounded-full border-2 ${isLatest ? "bg-vic border-vic" : "bg-surface-2 border-white/20"} ${isSelectedA || isSelectedB ? "ring-2 ring-accent/30 scale-125" : ""}`} />
+        <div
+          className={`w-3 h-3 rounded-full border-2 ${isLatest ? "bg-vic border-vic" : "bg-surface-2 border-white/20"} ${isSelectedA || isSelectedB ? "ring-2 ring-accent/30 scale-125" : ""}`}
+        />
         {index < 4 && <div className="w-px h-6 bg-foreground/10 mt-1" />}
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap mb-1">
-          <span className="text-sm font-medium truncate">{version.version_label || `Version #${version.id}`}</span>
+          <span className="text-sm font-medium truncate">
+            {version.version_label || `Version #${version.id}`}
+          </span>
           {isLatest && (
             <span className="inline-flex items-center px-1.5 py-0.5 bg-vic/15 text-vic rounded text-[10px] font-medium">
               Current
@@ -536,9 +623,20 @@ function VersionItem({
         </div>
         <p className="text-xs text-foreground/40 flex items-center gap-1">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
-          {new Date(version.fetched_at).toLocaleString("en-AU", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+          {new Date(version.fetched_at).toLocaleString("en-AU", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
         </p>
       </div>
 
@@ -563,7 +661,11 @@ function VersionItem({
   );
 }
 
-function DiffModal({ versionA, versionB, onClose }: {
+function DiffModal({
+  versionA,
+  versionB,
+  onClose,
+}: {
   versionA?: Version;
   versionB?: Version;
   onClose: () => void;
@@ -582,13 +684,28 @@ function DiffModal({ versionA, versionB, onClose }: {
             <h2 className="text-lg font-semibold">No Differences</h2>
             <button onClick={onClose} className="text-muted hover:text-foreground">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
           <div className="p-8 text-center">
-            <svg className="w-12 h-12 mx-auto mb-3 text-vic" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-12 h-12 mx-auto mb-3 text-vic"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
             <p className="text-foreground/50">The content of these two versions is identical.</p>
           </div>
@@ -604,12 +721,23 @@ function DiffModal({ versionA, versionB, onClose }: {
         {/* Header */}
         <div className="bg-white/[0.03] border-b border-white/[0.06] px-6 py-4 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-lg font-semibold">Diff: {versionA.version_label || `v${versionA.id}`} → {versionB.version_label || `v${versionB.id}`}</h2>
-            <p className="text-xs text-foreground/40 mt-0.5">{new Date(versionA.fetched_at).toLocaleDateString("en-AU")} → {new Date(versionB.fetched_at).toLocaleDateString("en-AU")}</p>
+            <h2 className="text-lg font-semibold">
+              Diff: {versionA.version_label || `v${versionA.id}`} →{" "}
+              {versionB.version_label || `v${versionB.id}`}
+            </h2>
+            <p className="text-xs text-foreground/40 mt-0.5">
+              {new Date(versionA.fetched_at).toLocaleDateString("en-AU")} →{" "}
+              {new Date(versionB.fetched_at).toLocaleDateString("en-AU")}
+            </p>
           </div>
           <button onClick={onClose} className="text-muted hover:text-foreground transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -650,13 +778,13 @@ function ChangeFrequencyChart({ changes }: { changes: ChangeRecord[] }) {
   return (
     <div className="flex items-end gap-1 h-14" title="Changes per week (last 8 weeks)">
       {weeks.map((w, i) => (
-        <div
-          key={i}
-          className="flex flex-col items-center gap-1 flex-1"
-        >
+        <div key={i} className="flex flex-col items-center gap-1 flex-1">
           <div
             className="w-full bg-accent/40 rounded-sm hover:bg-accent/70 transition-colors"
-            style={{ height: `${(w.count / maxCount) * barHeight}px`, minHeight: w.count > 0 ? 4 : 0 }}
+            style={{
+              height: `${(w.count / maxCount) * barHeight}px`,
+              minHeight: w.count > 0 ? 4 : 0,
+            }}
           />
           <span className="text-[9px] text-foreground/30 hidden sm:block truncate w-full text-center">
             {w.count > 0 ? w.count : ""}

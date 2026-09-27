@@ -12,18 +12,14 @@ export interface DiffResult {
  * Generate a human-readable change summary by analyzing diffs
  * between two versions of legislation.
  */
-export function analyzeChanges(
-  oldText: string,
-  newText: string,
-  actTitle: string
-): DiffResult {
+export function analyzeChanges(oldText: string, newText: string, actTitle: string): DiffResult {
   const diff = createTwoFilesPatch(
     "old.txt",
     "new.txt",
     oldText,
     newText,
     "Previous version",
-    "Current version"
+    "Current version",
   );
 
   // Parse the unified diff to get added/removed lines
@@ -45,7 +41,9 @@ export function analyzeChanges(
       if (match && match[1]) {
         const startLine = parseInt(match[1], 10);
         // Look backwards for section headers near this line
-        const prevText = oldText.split("\n").slice(0, Math.min(startLine + 5, oldText.split("\n").length));
+        const prevText = oldText
+          .split("\n")
+          .slice(0, Math.min(startLine + 5, oldText.split("\n").length));
         const lastHeader = findLastSectionHeader(prevText);
         if (lastHeader && !changedSections.includes(lastHeader)) {
           changedSections.push(lastHeader);
@@ -87,7 +85,13 @@ export function analyzeChanges(
   const affectedGroups = detectAffectedGroups(combinedDiff, actTitle);
 
   // Generate summary
-  const summary = generateSummary(actTitle, addedLines, removedLines, uniqueSections.slice(0, 5), affectedGroups);
+  const summary = generateSummary(
+    actTitle,
+    addedLines,
+    removedLines,
+    uniqueSections.slice(0, 5),
+    affectedGroups,
+  );
 
   return {
     addedLines,
@@ -99,7 +103,8 @@ export function analyzeChanges(
 }
 
 function findLastSectionHeader(lines: string[]): string | null {
-  const sectionPattern = /^(Section\s+\d+|Division\s+\w+|Part\s+(?:\d|[IVX]+)|Clause\s+\d+|Schedule\s+(?:No\.?\s*)?\d*|[A-Z][^.]{5,80}:\s*$)/i;
+  const sectionPattern =
+    /^(Section\s+\d+|Division\s+\w+|Part\s+(?:\d|[IVX]+)|Clause\s+\d+|Schedule\s+(?:No\.?\s*)?\d*|[A-Z][^.]{5,80}:\s*$)/i;
   for (let i = lines.length - 1; i >= Math.max(0, lines.length - 20); i--) {
     const match = lines[i].trim().match(sectionPattern);
     if (match) return match[0];
@@ -109,7 +114,19 @@ function findLastSectionHeader(lines: string[]): string | null {
 
 function isMeaningfulChange(line: string): boolean {
   // Filter out trivial changes like single word typos
-  const stopWords = new Set(["the", "a", "an", "is", "are", "was", "were", "to", "of", "and", "or"]);
+  const stopWords = new Set([
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "to",
+    "of",
+    "and",
+    "or",
+  ]);
   const words = line.split(/\s+/).filter((w) => w.length > 3);
   if (words.length === 0) return false;
   const stopRatio = words.filter((w) => stopWords.has(w.toLowerCase())).length / words.length;
@@ -122,22 +139,36 @@ function detectAffectedGroups(diff: string, actTitle: string): string[] {
   const titleLower = actTitle.toLowerCase();
 
   // Check for business/corporate references
-  if (/\b(corporat|business|compan|enterpris|trade|commerce|market)\b/.test(lower) || /corporations/i.test(actTitle)) {
+  if (
+    /\b(corporat|business|compan|enterpris|trade|commerce|market)\b/.test(lower) ||
+    /corporations/i.test(actTitle)
+  ) {
     groups.push("Businesses & Corporations");
   }
 
   // Privacy / data references
-  if (/\b(personal data|information collection|privacy|sensitive information|confidential)\b/.test(lower) || /privacy/i.test(actTitle)) {
+  if (
+    /\b(personal data|information collection|privacy|sensitive information|confidential)\b/.test(
+      lower,
+    ) ||
+    /privacy/i.test(actTitle)
+  ) {
     groups.push("Individuals & Data Subjects");
   }
 
   // Workplace references
-  if (/\b(employ|worker|workplace|employee|occupational safety)\b/.test(lower) || /work.+health.+safety/i.test(actTitle)) {
+  if (
+    /\b(employ|worker|workplace|employee|occupational safety)\b/.test(lower) ||
+    /work.+health.+safety/i.test(actTitle)
+  ) {
     groups.push("Workers & Employers");
   }
 
   // Health/Medical references
-  if (/\b(health care|medical practitioner|health service|clinical|hospital)\b/.test(lower) || /health.*practitioner|health/i.test(actTitle)) {
+  if (
+    /\b(health care|medical practitioner|health service|clinical|hospital)\b/.test(lower) ||
+    /health.*practitioner|health/i.test(actTitle)
+  ) {
     groups.push("Health Practitioners & Patients");
   }
 
@@ -147,7 +178,10 @@ function detectAffectedGroups(diff: string, actTitle: string): string[] {
   }
 
   // Government references
-  if (/\b(agency|authority|regulator|commission|department|government)\b/.test(lower) && /amend/.test(diff)) {
+  if (
+    /\b(agency|authority|regulator|commission|department|government)\b/.test(lower) &&
+    /amend/.test(diff)
+  ) {
     groups.push("Government Agencies");
   }
 
@@ -169,7 +203,7 @@ function generateSummary(
   addedLines: number,
   removedLines: number,
   sections: string[],
-  affectedGroups: string[]
+  affectedGroups: string[],
 ): string {
   const parts: string[] = [];
 
@@ -180,13 +214,16 @@ function generateSummary(
   if (addedLines > 0 || removedLines > 0) {
     const changeParts: string[] = [];
     if (addedLines > 0) changeParts.push(`${addedLines} line${addedLines !== 1 ? "s" : ""} added`);
-    if (removedLines > 0) changeParts.push(`${removedLines} line${removedLines !== 1 ? "s" : ""} removed`);
+    if (removedLines > 0)
+      changeParts.push(`${removedLines} line${removedLines !== 1 ? "s" : ""} removed`);
     parts.push(`(${changeParts.join(", ")})`);
   }
 
   // Key changes
   if (sections.length > 0) {
-    const uniqueKeySections = sections.filter((s) => s.startsWith("Added:") || s.startsWith("Removed:"));
+    const uniqueKeySections = sections.filter(
+      (s) => s.startsWith("Added:") || s.startsWith("Removed:"),
+    );
     if (uniqueKeySections.length > 0) {
       parts.push(`Key changes include:`);
       uniqueKeySections.slice(0, 3).forEach((section) => {
@@ -201,9 +238,7 @@ function generateSummary(
 
   // Affected parties
   if (affectedGroups.length > 0 && affectedGroups[0] !== "General Public") {
-    parts.push(
-      `This affects: ${affectedGroups.join(", ")}.`
-    );
+    parts.push(`This affects: ${affectedGroups.join(", ")}.`);
   } else if (affectedGroups.length > 0) {
     parts.push("This may affect the general public.");
   }

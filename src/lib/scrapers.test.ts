@@ -4,9 +4,7 @@ import { normalizeText, hashText } from "./scrapers";
 describe("normalizeText", () => {
   it("preserves line/paragraph structure", () => {
     const input = "Section 5\nA person must act.\nSection 6\nAnother line.";
-    expect(normalizeText(input)).toBe(
-      "Section 5\nA person must act.\nSection 6\nAnother line."
-    );
+    expect(normalizeText(input)).toBe("Section 5\nA person must act.\nSection 6\nAnother line.");
   });
 
   it("collapses internal whitespace runs to single spaces", () => {
@@ -25,9 +23,7 @@ describe("normalizeText", () => {
   });
 
   it("removes empty lines and trims the result", () => {
-    expect(normalizeText("   \nSection 5\n\nA person\n  ")).toBe(
-      "Section 5\nA person"
-    );
+    expect(normalizeText("   \nSection 5\n\nA person\n  ")).toBe("Section 5\nA person");
   });
 
   it("normalizes unicode whitespace and strips soft hyphens", () => {
@@ -47,9 +43,7 @@ describe("hashText", () => {
   });
 
   it("matches the known SHA-256 of the empty string", () => {
-    expect(hashText("")).toBe(
-      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    );
+    expect(hashText("")).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
   });
 
   it("differs for different inputs", () => {

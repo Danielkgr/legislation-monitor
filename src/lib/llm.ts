@@ -125,7 +125,7 @@ function buildDiffPayload(oldText: string, newText: string, maxChars = 12_000): 
         !l.startsWith("Index:") &&
         !l.startsWith("====") &&
         !l.startsWith("--- ") &&
-        !l.startsWith("+++ ")
+        !l.startsWith("+++ "),
     )
     .join("\n");
   return body.length <= maxChars ? body : `${body.slice(0, maxChars)}\n... [diff truncated]`;
@@ -191,7 +191,8 @@ function heuristicToBrief(result: DiffResult, actTitle: string): ChangeBrief {
     result.changedSections.length > 0
       ? result.changedSections.slice(0, 6)
       : ["General amendments across the document"];
-  const affected = result.affectedGroups.length > 0 ? result.affectedGroups.join(", ") : "General stakeholders";
+  const affected =
+    result.affectedGroups.length > 0 ? result.affectedGroups.join(", ") : "General stakeholders";
   const changeCount = result.addedLines + result.removedLines;
   return {
     summary: result.summary,
@@ -240,7 +241,7 @@ export async function generateChangeBrief(params: {
   } catch (err) {
     console.warn(
       "[llm] falling back to heuristic brief:",
-      err instanceof Error ? err.message : err
+      err instanceof Error ? err.message : err,
     );
     return heuristicToBrief(heuristic, actTitle);
   }

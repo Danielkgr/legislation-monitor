@@ -1,0 +1,7 @@
+# Revisions to skip in git blame.
+#
+# Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Normalise formatting with biome (pure formatting, no behaviour change)
+832b2340a81dbf45ddf366a913533c29a5139c9a

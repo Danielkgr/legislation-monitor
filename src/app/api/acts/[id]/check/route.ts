@@ -3,12 +3,13 @@ import { connectDB } from "@/lib/db";
 import { scrapeAct } from "@/lib/scrapers";
 import { analyzeChanges } from "@/lib/diff";
 import { generateChangeBrief } from "@/lib/llm";
-import { serializeTOCFromHTML, deserializeTOC, identifyAffectedSectionsEnriched } from "@/lib/structure";
+import {
+  serializeTOCFromHTML,
+  deserializeTOC,
+  identifyAffectedSectionsEnriched,
+} from "@/lib/structure";
 
-export async function POST(
-  _req: any,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(_req: any, { params }: { params: Promise<{ id: string }> }) {
   const db = connectDB();
   const { id } = await params;
 
@@ -22,17 +23,17 @@ export async function POST(
     const scrapeResult = await scrapeAct(act.url, act.jurisdiction);
 
     // Check if content has changed since the latest version
-    const latestVersion = db.prepare(
-      `SELECT * FROM versions WHERE act_id = ? ORDER BY fetched_at DESC LIMIT 1`
-    ).get(id) as any;
+    const latestVersion = db
+      .prepare(`SELECT * FROM versions WHERE act_id = ? ORDER BY fetched_at DESC LIMIT 1`)
+      .get(id) as any;
 
     let newVersionId: number | null = null;
     let changeRecord: any = null;
 
     // Store new version
-    const existingVersions: any[] = db.prepare(
-      "SELECT content_hash FROM versions WHERE act_id = ?"
-    ).all(id);
+    const existingVersions: any[] = db
+      .prepare("SELECT content_hash FROM versions WHERE act_id = ?")
+      .all(id);
     const existingHashes = new Set(existingVersions.map((v) => v.content_hash));
 
     if (!existingHashes.has(scrapeResult.contentHash)) {
@@ -40,7 +41,7 @@ export async function POST(
       const structure = scrapeResult.rawHtml ? serializeTOCFromHTML(scrapeResult.rawHtml) : null;
 
       const insertVersion = db.prepare(
-        `INSERT INTO versions (act_id, version_label, content_hash, plain_text, source_url, structure) VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO versions (act_id, version_label, content_hash, plain_text, source_url, structure) VALUES (?, ?, ?, ?, ?, ?)`,
       );
       const result = insertVersion.run(
         id,
@@ -48,7 +49,7 @@ export async function POST(
         scrapeResult.contentHash,
         scrapeResult.plainText,
         act.url,
-        structure
+        structure,
       );
       newVersionId = result.lastInsertRowid as number;
 
@@ -67,8 +68,8 @@ export async function POST(
               const toc = deserializeTOC(latestVersion.structure);
               const details = identifyAffectedSectionsEnriched(
                 toc,
-                oldText.split('\n'),
-                newText.split('\n')
+                oldText.split("\n"),
+                newText.split("\n"),
               );
               enrichedDetails = JSON.stringify(details);
             } catch (parseErr) {
@@ -93,7 +94,7 @@ export async function POST(
 
           const insertChange = db.prepare(
             `INSERT INTO changes (act_id, version_from_id, version_to_id, summary, sections_changed, affected_groups, change_count, brief, section_details)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           );
           const changeRes = insertChange.run(
             id,
@@ -104,7 +105,7 @@ export async function POST(
             affectedJson,
             diffResult.addedLines + diffResult.removedLines,
             briefJson,
-            sectionDetailsJson
+            sectionDetailsJson,
           );
           changeRecord = {
             id: changeRes.lastInsertRowid as number,
@@ -135,7 +136,7 @@ export async function POST(
 
             // Store context around changes
             const insertDiffLine = db.prepare(
-              "INSERT INTO content_diffs (change_id, side, line_number, content) VALUES (?, ?, ?, ?)"
+              "INSERT INTO content_diffs (change_id, side, line_number, content) VALUES (?, ?, ?, ?)",
             );
             for (let i = 0; i < Math.min(oldLines.length, 500); i++) {
               if (oldLines[i] && oldLines[i].trim()) {
@@ -161,13 +162,12 @@ export async function POST(
       success: true,
       hasChange: !!newVersionId,
       change: changeRecord,
-      new_version_count: (db.prepare("SELECT COUNT(*) as cnt FROM versions WHERE act_id = ?").get(id) as any).cnt,
+      new_version_count: (
+        db.prepare("SELECT COUNT(*) as cnt FROM versions WHERE act_id = ?").get(id) as any
+      ).cnt,
     });
   } catch (err) {
     console.error("Error checking act:", err);
-    return NextResponse.json(
-      { success: false, error: String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
 }

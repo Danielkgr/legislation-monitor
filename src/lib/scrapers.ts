@@ -63,7 +63,7 @@ function extractStructuredText($: Cheerio, selector: string): string {
   $root.find("br").replaceWith("\n");
   $root
     .find(
-      "h1,h2,h3,h4,h5,h6,p,li,dt,dd,div,section,article,table,thead,tbody,tr,blockquote,pre,figure"
+      "h1,h2,h3,h4,h5,h6,p,li,dt,dd,div,section,article,table,thead,tbody,tr,blockquote,pre,figure",
     )
     .each((_, el) => {
       $(el).append("\n");
@@ -110,12 +110,8 @@ async function scrapeFederal(url: string): Promise<ScraperResult> {
     $("#page-title, .title").first().text().trim() ||
     "Federal Act";
 
-  const content = extractStructuredText(
-    $,
-    "#content, #main-content, .legislation-content, main"
-  );
-  const plainText =
-    content.length >= 50 ? content : extractStructuredText($, "body");
+  const content = extractStructuredText($, "#content, #main-content, .legislation-content, main");
+  const plainText = content.length >= 50 ? content : extractStructuredText($, "body");
 
   return {
     title,
@@ -143,13 +139,8 @@ async function scrapeVictorian(url: string): Promise<ScraperResult> {
         continue; // Not a real Act page — try the next candidate.
       }
       const title =
-        $("h1").first().text().trim() ||
-        extractTitleFromTideListings(html) ||
-        "Victorian Act";
-      const plainText = extractStructuredText(
-        $,
-        "#content, #main-content, .legislation, main"
-      );
+        $("h1").first().text().trim() || extractTitleFromTideListings(html) || "Victorian Act";
+      const plainText = extractStructuredText($, "#content, #main-content, .legislation, main");
       return {
         title,
         plainText,
@@ -171,7 +162,7 @@ async function scrapeVictorian(url: string): Promise<ScraperResult> {
     const title = $("h1").first().text().trim() || actName;
     const plainText = extractStructuredText(
       $,
-      "#content, #main-content, .tide-search-listing, main"
+      "#content, #main-content, .tide-search-listing, main",
     );
     return {
       title,
@@ -208,7 +199,10 @@ function extractVersionLabel(url: string): string | null {
   return match ? match[1] : null;
 }
 
-export async function scrapeAct(url: string, jurisdiction: "federal" | "vic"): Promise<ScraperResult> {
+export async function scrapeAct(
+  url: string,
+  jurisdiction: "federal" | "vic",
+): Promise<ScraperResult> {
   if (jurisdiction === "federal") {
     return scrapeFederal(url);
   }

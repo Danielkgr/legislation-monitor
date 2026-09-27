@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 
-export async function GET(
-  _req: any,
-  { params }: { params: Promise<{ actId: string }> }
-) {
+export async function GET(_req: any, { params }: { params: Promise<{ actId: string }> }) {
   const db = connectDB();
   const { actId } = await params;
 
   try {
-    const changes = db.prepare(
-      `SELECT c.*, a.title as act_title, v2.version_label as to_label, v1.version_label as from_label,
+    const changes = db
+      .prepare(
+        `SELECT c.*, a.title as act_title, v2.version_label as to_label, v1.version_label as from_label,
         json_each.value as section
        FROM changes c
        JOIN acts a ON a.id = c.act_id
@@ -18,8 +16,9 @@ export async function GET(
        LEFT JOIN versions v1 ON v1.id = c.version_from_id
        LEFT JOIN json_each(c.sections_changed) on_true
        WHERE c.act_id = ?
-       ORDER BY c.detected_at DESC`
-    ).all(actId) as any[];
+       ORDER BY c.detected_at DESC`,
+      )
+      .all(actId) as any[];
 
     // Parse the JSON arrays properly
     const parsedChanges = changes.reduce<any[]>((acc, row) => {

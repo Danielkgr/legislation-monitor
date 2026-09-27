@@ -80,7 +80,9 @@ export default function SettingsPage() {
             </div>
             <div>
               <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
-              <p className="text-xs text-white/50 hidden sm:block">Configure how changes are summarised</p>
+              <p className="text-xs text-white/50 hidden sm:block">
+                Configure how changes are summarised
+              </p>
             </div>
           </div>
           <Link
@@ -88,7 +90,12 @@ export default function SettingsPage() {
             className="text-xs text-faint hover:text-foreground transition-colors flex items-center gap-1"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
             </svg>
             Dashboard
           </Link>
@@ -102,10 +109,10 @@ export default function SettingsPage() {
             <div>
               <h2 className="text-sm font-semibold">AI change summaries</h2>
               <p className="text-xs text-muted mt-1 leading-relaxed max-w-lg">
-                Generate plain-English briefs for each detected change using any
-                OpenAI-compatible <span className="font-mono-custom">/chat/completions</span> endpoint
-                — a cloud provider or a local server (Ollama, LM Studio, vLLM).
-                When disabled, a deterministic auto-summary is used instead.
+                Generate plain-English briefs for each detected change using any OpenAI-compatible{" "}
+                <span className="font-mono-custom">/chat/completions</span> endpoint — a cloud
+                provider or a local server (Ollama, LM Studio, vLLM). When disabled, a deterministic
+                auto-summary is used instead.
               </p>
             </div>
             {/* Enable toggle */}
@@ -127,7 +134,10 @@ export default function SettingsPage() {
           </div>
 
           <div className="grid gap-4">
-            <Field label="API base URL" hint="e.g. http://localhost:11434/v1 (Ollama) or https://api.openai.com/v1">
+            <Field
+              label="API base URL"
+              hint="e.g. http://localhost:11434/v1 (Ollama) or https://api.openai.com/v1"
+            >
               <input
                 type="url"
                 value={form.apiBase}
@@ -190,20 +200,34 @@ export default function SettingsPage() {
             >
               {saving && (
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  />
                 </svg>
               )}
               {saving ? "Saving…" : "Save settings"}
             </button>
             {status && (
-              <span className={`text-xs ${status.ok ? "text-success" : "text-danger"}`}>{status.text}</span>
+              <span className={`text-xs ${status.ok ? "text-success" : "text-danger"}`}>
+                {status.text}
+              </span>
             )}
           </div>
 
           {form.enabled && !form.apiBase && (
             <p className="text-xs text-accent-amber mt-3">
-              Enabled, but no API base URL set — briefs will fall back to the automatic summary until an endpoint is configured.
+              Enabled, but no API base URL set — briefs will fall back to the automatic summary
+              until an endpoint is configured.
             </p>
           )}
         </section>

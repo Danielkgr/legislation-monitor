@@ -22,7 +22,7 @@ export interface TocNode {
   /** Element id if available, otherwise null */
   elementId: string | null;
   level: number; // numeric depth (2 = h2, etc.)
-  key: string;   // normalised identifier (e.g. "p1", "s5")
+  key: string; // normalised identifier (e.g. "p1", "s5")
   children: TocNode[];
 }
 
@@ -67,13 +67,13 @@ export function parseTOC($: cheerio.CheerioAPI): TableOfContents {
 
   const selectors = [
     // Federal class-based (most specific)
-    'h2.part-heading, .part > h2',
-    'h2.chapter-heading, .chapter > h2',
-    'h3.division-heading, .division > h3',
-    'h4.section-heading, .section > h4',
+    "h2.part-heading, .part > h2",
+    "h2.chapter-heading, .chapter > h2",
+    "h3.division-heading, .division > h3",
+    "h4.section-heading, .section > h4",
     // Generic heading elements that might contain structure info
-    'h2, h3, h4, h5',
-  ].join(',');
+    "h2, h3, h4, h5",
+  ].join(",");
 
   const $heads = $(selectors).toArray();
 
@@ -82,40 +82,96 @@ export function parseTOC($: cheerio.CheerioAPI): TableOfContents {
     const text = $el.text().trim();
     if (!text || text.length < 3) continue;
 
-    let node: typeof candidates[number] | undefined;
+    let node: (typeof candidates)[number] | undefined;
 
     // Try class-based first
-    const cls = $el.attr('class') || '';
+    const cls = $el.attr("class") || "";
     if (/part/i.test(cls)) {
       const m = text.match(PART_RE);
-      if (m) node = { type: 'part', title: text, level: parseInt($el.prop('tagName')?.[1] ?? '2', 10), elementId: $el.attr('id') ?? null, key: `p${m[1]}` };
+      if (m)
+        node = {
+          type: "part",
+          title: text,
+          level: parseInt($el.prop("tagName")?.[1] ?? "2", 10),
+          elementId: $el.attr("id") ?? null,
+          key: `p${m[1]}`,
+        };
     } else if (/chapter/i.test(cls)) {
       const m = text.match(CHAPTER_RE);
-      if (m) node = { type: 'chapter', title: text, level: parseInt($el.prop('tagName')?.[1] ?? '3', 10), elementId: $el.attr('id') ?? null, key: `c${m[1]}` };
+      if (m)
+        node = {
+          type: "chapter",
+          title: text,
+          level: parseInt($el.prop("tagName")?.[1] ?? "3", 10),
+          elementId: $el.attr("id") ?? null,
+          key: `c${m[1]}`,
+        };
     } else if (/division/i.test(cls)) {
       const m = text.match(DIVISION_RE);
-      if (m) node = { type: 'division', title: text, level: parseInt($el.prop('tagName')?.[1] ?? '4', 10), elementId: $el.attr('id') ?? null, key: `d${m[1]}` };
+      if (m)
+        node = {
+          type: "division",
+          title: text,
+          level: parseInt($el.prop("tagName")?.[1] ?? "4", 10),
+          elementId: $el.attr("id") ?? null,
+          key: `d${m[1]}`,
+        };
     } else if (/section/i.test(cls)) {
       const m = text.match(SECTION_RE);
-      if (m) node = { type: 'section', title: text, level: parseInt($el.prop('tagName')?.[1] ?? '5', 10), elementId: $el.attr('id') ?? null, key: `s${m[1]}` };
+      if (m)
+        node = {
+          type: "section",
+          title: text,
+          level: parseInt($el.prop("tagName")?.[1] ?? "5", 10),
+          elementId: $el.attr("id") ?? null,
+          key: `s${m[1]}`,
+        };
     }
 
     // Fallback to text-based detection
     if (!node) {
       const pm = text.match(PART_RE);
-      if (pm) node = { type: 'part', title: text, level: parseInt($el.prop('tagName')?.[1] ?? '2', 10), elementId: $el.attr('id') ?? null, key: `p${pm[1]}` };
+      if (pm)
+        node = {
+          type: "part",
+          title: text,
+          level: parseInt($el.prop("tagName")?.[1] ?? "2", 10),
+          elementId: $el.attr("id") ?? null,
+          key: `p${pm[1]}`,
+        };
     }
     if (!node) {
       const cm = text.match(CHAPTER_RE);
-      if (cm) node = { type: 'chapter', title: text, level: parseInt($el.prop('tagName')?.[1] ?? '3', 10), elementId: $el.attr('id') ?? null, key: `c${cm[1]}` };
+      if (cm)
+        node = {
+          type: "chapter",
+          title: text,
+          level: parseInt($el.prop("tagName")?.[1] ?? "3", 10),
+          elementId: $el.attr("id") ?? null,
+          key: `c${cm[1]}`,
+        };
     }
     if (!node) {
       const dm = text.match(DIVISION_RE);
-      if (dm) node = { type: 'division', title: text, level: parseInt($el.prop('tagName')?.[1] ?? '4', 10), elementId: $el.attr('id') ?? null, key: `d${dm[1]}` };
+      if (dm)
+        node = {
+          type: "division",
+          title: text,
+          level: parseInt($el.prop("tagName")?.[1] ?? "4", 10),
+          elementId: $el.attr("id") ?? null,
+          key: `d${dm[1]}`,
+        };
     }
     if (!node) {
       const sm = text.match(SECTION_RE);
-      if (sm) node = { type: 'section', title: text, level: parseInt($el.prop('tagName')?.[1] ?? '5', 10), elementId: $el.attr('id') ?? null, key: `s${sm[1]}` };
+      if (sm)
+        node = {
+          type: "section",
+          title: text,
+          level: parseInt($el.prop("tagName")?.[1] ?? "5", 10),
+          elementId: $el.attr("id") ?? null,
+          key: `s${sm[1]}`,
+        };
     }
 
     if (node) candidates.push(node);
@@ -131,8 +187,8 @@ export function parseTOC($: cheerio.CheerioAPI): TableOfContents {
   // Index sections by their number
   const sections = new Map<string, TocNode>();
   for (const node of all) {
-    if (node.type === 'section') {
-      const num = node.key.replace(/^s/, '');
+    if (node.type === "section") {
+      const num = node.key.replace(/^s/, "");
       sections.set(num, node);
     }
   }
@@ -159,7 +215,15 @@ function buildTree(flat: FlatNode[]): TocNode[] {
   const stack: Array<{ node: TocNode; level: number }> = [];
 
   for (const item of flat) {
-    const node: TocNode = { type: item.type, title: item.title, heading: item.title, elementId: item.elementId, level: item.level, key: item.key, children: [] };
+    const node: TocNode = {
+      type: item.type,
+      title: item.title,
+      heading: item.title,
+      elementId: item.elementId,
+      level: item.level,
+      key: item.key,
+      children: [],
+    };
 
     // Pop stack until we find a parent with shallower or equal level
     while (stack.length > 0 && stack[stack.length - 1].level > node.level) {
@@ -188,7 +252,7 @@ function flatten(nodes: TocNode[], out: TocNode[]): void {
 /** Info about a section whose content changed */
 export interface SectionChange {
   sectionTitle: string;
-  changeType: 'added' | 'removed' | 'modified';
+  changeType: "added" | "removed" | "modified";
   context: string;
 }
 
@@ -196,7 +260,7 @@ export interface SectionChange {
 export interface EnrichedSectionChange {
   sectionNumber: string | null;
   sectionTitle: string;
-  changeType: 'added' | 'removed' | 'modified';
+  changeType: "added" | "removed" | "modified";
   /** e.g. "Part 1 > Division 2" */
   parentPath: string;
   /** Raw heading text that was matched */
@@ -210,7 +274,7 @@ export interface EnrichedSectionChange {
 export function identifyAffectedSectionsEnriched(
   toc: TableOfContents,
   linesBefore: string[],
-  linesAfter: string[]
+  linesAfter: string[],
 ): EnrichedSectionChange[] {
   const affected = new Map<string, EnrichedSectionChange>();
 
@@ -238,7 +302,11 @@ export function identifyAffectedSectionsEnriched(
       // Heading exists in both — flag as modified only if changed lines are nearby
       const proximityWindow = Math.min(50, linesAfter.length);
       const idx = closestAfter;
-      for (let j = Math.max(0, idx - 3); j <= Math.min(linesAfter.length - 1, idx + proximityWindow); j++) {
+      for (
+        let j = Math.max(0, idx - 3);
+        j <= Math.min(linesAfter.length - 1, idx + proximityWindow);
+        j++
+      ) {
         if (allChanged.has(j)) {
           isModified = true;
           break;
@@ -249,10 +317,14 @@ export function identifyAffectedSectionsEnriched(
     if (isAdded || isRemoved || isModified) {
       // Get parent path from TOC hierarchy
       const parentPath = getParentPath(toc, tocNode);
-      const changeType = isAdded ? 'added' as const : isRemoved ? 'removed' as const : 'modified' as const;
+      const changeType = isAdded
+        ? ("added" as const)
+        : isRemoved
+          ? ("removed" as const)
+          : ("modified" as const);
 
       // Key by section number to avoid duplicates
-      const num = tocNode.type === 'section' ? tocNode.key.replace(/^s/, '') : null;
+      const num = tocNode.type === "section" ? tocNode.key.replace(/^s/, "") : null;
       const key = num || tocNode.key;
 
       if (!affected.has(key)) {
@@ -273,7 +345,7 @@ export function identifyAffectedSectionsEnriched(
 function findLineIndexByHeading(lines: string[], heading: string): number {
   const keyWords = heading.split(/\s+/).slice(0, 3); // First 3 words as search key
   for (let i = 0; i < lines.length; i++) {
-    const lineNorm = lines[i].replace(/\s+/g, ' ').trim().toLowerCase();
+    const lineNorm = lines[i].replace(/\s+/g, " ").trim().toLowerCase();
     if (keyWords.some((w) => lineNorm.includes(w.toLowerCase()))) return i;
   }
   return -1;
@@ -281,11 +353,7 @@ function findLineIndexByHeading(lines: string[], heading: string): number {
 
 function getParentPath(toc: TableOfContents, node: TocNode): string {
   // Walk up the hierarchy to build parent path using recursive descent
-  function findParent(
-    path: string[],
-    current: TocNode,
-    candidate: TocNode
-  ): string[] {
+  function findParent(path: string[], current: TocNode, candidate: TocNode): string[] {
     for (let i = 0; i < candidate.children.length; i++) {
       const child = candidate.children[i];
       if (child === current) {
@@ -301,7 +369,7 @@ function getParentPath(toc: TableOfContents, node: TocNode): string {
   for (const root of toc.root) {
     if (root === node) return root.title; // Root itself is top-level
     const ancestors = findParent([], root, node);
-    if (ancestors.length > 0) return [...ancestors, node.title].join(' > ');
+    if (ancestors.length > 0) return [...ancestors, node.title].join(" > ");
   }
 
   return node.title;
@@ -317,18 +385,18 @@ function getParentPath(toc: TableOfContents, node: TocNode): string {
 export function identifyAffectedSections(
   toc: TableOfContents,
   linesBefore: string[],
-  linesAfter: string[]
+  linesAfter: string[],
 ): SectionChange[] {
   const affected: SectionChange[] = [];
   const { added, removed, modified } = computeChanges(linesBefore, linesAfter);
 
   for (const line of added) {
     const ctx = getHeadingContext(toc, linesAfter, line);
-    if (ctx) affected.push({ sectionTitle: ctx, changeType: 'added', context: ctx });
+    if (ctx) affected.push({ sectionTitle: ctx, changeType: "added", context: ctx });
   }
   for (const line of removed) {
     const ctx = getHeadingContext(toc, linesBefore, line);
-    if (ctx) affected.push({ sectionTitle: ctx, changeType: 'removed', context: ctx });
+    if (ctx) affected.push({ sectionTitle: ctx, changeType: "removed", context: ctx });
   }
 
   return affected;
@@ -336,7 +404,7 @@ export function identifyAffectedSections(
 
 function computeChanges(
   before: string[],
-  after: string[]
+  after: string[],
 ): { added: number[]; removed: number[]; modified: number[] } {
   const added: number[] = [];
   const removed: number[] = [];
@@ -359,20 +427,20 @@ function computeChanges(
 }
 
 function findClosestLine(lines: string[], needle: string, used: Set<number>): number {
-  const needleNorm = needle.replace(/\s+/g, ' ').trim().toLowerCase();
+  const needleNorm = needle.replace(/\s+/g, " ").trim().toLowerCase();
   let bestIdx = -1;
   let bestSim = 0;
 
   for (let i = 0; i < lines.length; i++) {
     if (used.has(i)) continue;
-    const lineNorm = lines[i].replace(/\s+/g, ' ').trim().toLowerCase();
+    const lineNorm = lines[i].replace(/\s+/g, " ").trim().toLowerCase();
     // Simple containment check first
     if (needleNorm.includes(lineNorm) || lineNorm.includes(needleNorm)) {
       return i;
     }
     // Word overlap score
-    const a = new Set(needleNorm.split(' '));
-    const b = new Set(lineNorm.split(' '));
+    const a = new Set(needleNorm.split(" "));
+    const b = new Set(lineNorm.split(" "));
     let score = 0;
     for (const w of a) if (b.has(w)) score++;
     if (score > bestSim) {
@@ -388,7 +456,8 @@ function getHeadingContext(toc: TableOfContents, lines: string[], lineIdx: numbe
   // Look backward from the changed line to find the nearest heading
   for (let i = Math.min(lineIdx, lines.length - 1); i >= Math.max(0, lineIdx - 3); i--) {
     const l = lines[i].trim();
-    if (PART_RE.test(l) || CHAPTER_RE.test(l) || DIVISION_RE.test(l) || SECTION_RE.test(l)) return l;
+    if (PART_RE.test(l) || CHAPTER_RE.test(l) || DIVISION_RE.test(l) || SECTION_RE.test(l))
+      return l;
   }
   return null;
 }

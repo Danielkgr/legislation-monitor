@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import * as cheerio from "cheerio";
-import { parseTOC, serializeTOC, deserializeTOC, identifyAffectedSections, identifyAffectedSectionsEnriched } from "./structure";
+import {
+  parseTOC,
+  serializeTOC,
+  deserializeTOC,
+  identifyAffectedSections,
+  identifyAffectedSectionsEnriched,
+} from "./structure";
 
 /* ── parseTOC: federal-style markup ──────────────────────────────────── */
 
@@ -119,13 +125,13 @@ describe("identifyAffectedSectionsEnriched", () => {
     const before = [
       "Part 1 - Preliminary",
       "Section 5 - Definitions",
-      'The definitions in this section are:',
+      "The definitions in this section are:",
       '"person" includes a body corporate.',
     ];
     const after = [
       "Part 1 - Preliminary",
       "Section 5 - Definitions",
-      'The definitions in this section are:',
+      "The definitions in this section are:",
       '"person" includes an individual or body corporate.',
       '"corporation" means a registered company.',
     ];
@@ -139,12 +145,12 @@ describe("identifyAffectedSectionsEnriched", () => {
     const toc = parseTOC(cheerio.load(tocHtml));
 
     const changes = identifyAffectedSectionsEnriched(toc, before, after);
-    
+
     // Should have detected a change to section 5
     expect(changes.length).toBeGreaterThan(0);
-    
+
     // Verify enriched fields are present
-    const sectionChange = changes.find(c => c.sectionNumber === "5");
+    const sectionChange = changes.find((c) => c.sectionNumber === "5");
     if (sectionChange) {
       expect(sectionChange.sectionTitle).toBe("Section 5 - Definitions");
       expect(typeof sectionChange.parentPath).toBe("string");
