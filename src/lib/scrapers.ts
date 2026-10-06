@@ -80,6 +80,14 @@ export function hashText(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
+/** A fetch or extraction failure.  The check reports it and stores nothing. */
+export class ScrapeError extends Error {}
+
+/** HTTP statuses worth retrying.  Other 4xx responses fail at once. */
+function isRetryable(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
 async function fetchWithRetry(url: string, retries = 2): Promise<string> {
   for (let i = 0; i <= retries; i++) {
     try {
@@ -91,10 +99,14 @@ async function fetchWithRetry(url: string, retries = 2): Promise<string> {
         },
         signal: AbortSignal.timeout(30_000),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const err = new ScrapeError(`HTTP ${res.status} from ${url}`);
+        if (!isRetryable(res.status)) throw Object.assign(err, { final: true });
+        throw err;
+      }
       return await res.text();
     } catch (err) {
-      if (i === retries) throw err;
+      if (i === retries || (err as { final?: boolean }).final) throw err;
       await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
     }
   }
@@ -130,40 +142,24 @@ async function scrapeVictorian(url: string): Promise<ScraperResult> {
     candidates.push(url.replace(/\/in-force\/act\//, "/in-force/acts/"));
   }
 
+  let lastError: unknown = null;
   for (const candidate of candidates) {
+    let html: string;
     try {
-      const html = await fetchWithRetry(candidate);
-      const $ = cheerio.load(html);
-      const bodyText = $("body").text();
-      if (bodyText.length < 500 || /we couldn't find that page/i.test(bodyText)) {
-        continue; // Not a real Act page — try the next candidate.
-      }
-      const title =
-        $("h1").first().text().trim() || extractTitleFromTideListings(html) || "Victorian Act";
-      const plainText = extractStructuredText($, "#content, #main-content, .legislation, main");
-      return {
-        title,
-        plainText,
-        versionLabel: extractVersionLabel(url),
-        contentHash: hashText(plainText),
-        rawHtml: html,
-      };
-    } catch {
-      /* fall through to next candidate */
+      html = await fetchWithRetry(candidate);
+    } catch (err) {
+      lastError = err;
+      continue;
     }
-  }
-
-  // Tide search fallback
-  const actName = url.split("/").pop() || "Victorian Act";
-  const searchUrl = `https://www.legislation.vic.gov.au/search?q=${encodeURIComponent(actName)}`;
-  try {
-    const html = await fetchWithRetry(searchUrl);
     const $ = cheerio.load(html);
-    const title = $("h1").first().text().trim() || actName;
-    const plainText = extractStructuredText(
-      $,
-      "#content, #main-content, .tide-search-listing, main",
-    );
+    const bodyText = $("body").text();
+    if (bodyText.length < 500 || /we couldn't find that page/i.test(bodyText)) {
+      lastError = new ScrapeError(`${candidate} is not an Act page`);
+      continue;
+    }
+    const title =
+      $("h1").first().text().trim() || extractTitleFromTideListings(html) || "Victorian Act";
+    const plainText = extractStructuredText($, "#content, #main-content, .legislation, main");
     return {
       title,
       plainText,
@@ -171,19 +167,14 @@ async function scrapeVictorian(url: string): Promise<ScraperResult> {
       contentHash: hashText(plainText),
       rawHtml: html,
     };
-  } catch {
-    // Last resort: a stable placeholder derived only from the URL slug.
-    // No volatile content, so it won't produce spurious change flags.
-    const slug = url.split("/").filter(Boolean).pop() || "Victorian Act";
-    const title = slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-    const plainText = `Victorian legislation: ${title} (page requires JavaScript rendering to verify amendments)`;
-    return {
-      title,
-      plainText,
-      versionLabel: null,
-      contentHash: hashText(plainText),
-    };
   }
+
+  // No placeholder and no search-page fallback: storing either as the Act's
+  // text would turn an outage into a recorded amendment.
+  const reason = lastError instanceof Error ? lastError.message : "no candidate page loaded";
+  throw new ScrapeError(
+    `Could not read the Victorian register page for ${url} (${reason}).  Nothing was stored.`,
+  );
 }
 
 function extractTitleFromTideListings(html: string): string {
