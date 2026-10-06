@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it } from "vitest";
+import { incrementPendingChanges } from "@/lib/db";
 import { seedActWithChange, useTestDatabase } from "@/lib/test-db";
+import { POST as ack } from "./ack/route";
+import { GET as count } from "./count/route";
 import { GET as exportChanges } from "./[actId]/export/route";
 import { GET as listChanges } from "./[actId]/route";
 
@@ -86,5 +89,20 @@ describe("GET /api/changes/:actId/export", () => {
       params(999),
     );
     expect(res.status).toBe(404);
+  });
+});
+
+describe("pending-changes counter", () => {
+  it("starts at zero, counts recorded changes and resets on acknowledge", async () => {
+    expect(await (await count()).json()).toEqual({ pending: 0 });
+
+    incrementPendingChanges();
+    incrementPendingChanges();
+    expect(await (await count()).json()).toEqual({ pending: 2 });
+
+    const res = await ack();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ pending: 0 });
+    expect(await (await count()).json()).toEqual({ pending: 0 });
   });
 });
