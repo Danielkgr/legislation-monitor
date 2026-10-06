@@ -25,9 +25,28 @@ It is a working prototype.  The scrapers follow each register's URL scheme and m
 
 <br>
 
+## Screenshots
+
+> [!NOTE]
+> These screenshots use demo data.  The Acts and their text are fictional fixtures written by `npm run demo:seed`, not real legislation.
+
+![Dashboard showing three fictional Acts labelled as demo fixtures](docs/images/dashboard.png)
+
+**Dashboard.**  Three fictional Acts from the demo database, each labelled as a demo fixture.  The banner in the header counts changes recorded since someone last dismissed it.
+
+![A change brief written by the heuristic for the fictional Example Act](docs/images/brief.png)
+
+**Change brief.**  The brief for the demo change, labelled "Heuristic brief" because no model was configured.  With Claude or a local model configured, the label names who wrote it.
+
+![Side-by-side diff of two versions of the fictional Example Act](docs/images/diff.png)
+
+**Diff viewer.**  The two demo versions side by side, with removed lines on the left and added lines on the right.
+
+<br>
+
 ## Results
 
-112 Vitest tests cover the diff engine, the scrapers and register URL handling on synthetic HTML fixtures, the table-of-contents parser that maps a change to its sections, the check pipeline, the briefs with the Claude and OpenAI-compatible APIs mocked, the digest script and the API routes.  CI runs them with lint, a format check, a type check and a production build on every push.
+113 Vitest tests cover the diff engine, the scrapers and register URL handling on synthetic HTML fixtures, the table-of-contents parser that maps a change to its sections, the check pipeline, the briefs with the Claude and OpenAI-compatible APIs mocked, the digest script and the API routes.  CI runs them with lint, a format check, a type check and a production build on every push.
 
 > [!NOTE]
 > This version has not yet been run against the live registers or the live Claude API.  The repository publishes no measurement of how reliably it catches real amendments over time.
@@ -104,6 +123,7 @@ npm run dev           # development server on 127.0.0.1:3000
 npm run build         # production build to .next/
 npm run start         # run the production build on 127.0.0.1:3000
 npm run check-all     # check every watched Act once and print a digest
+npm run demo:seed     # write a demo database of fictional Acts to .data/demo.db
 npm run lint          # ESLint
 npm run format        # format with Biome
 npm run format:check  # fail if any file needs formatting
@@ -222,6 +242,15 @@ npm start
 ```
 
 The database lives at `.data/legislation.db` inside the working directory.  Copy or mount it to keep state across restarts.
+
+To explore the app without touching the registers, write the demo database and point the app at it:
+
+```bash
+npm run demo:seed
+LEGISLATION_DB_PATH=.data/demo.db npm run dev
+```
+
+The demo Acts live on the reserved `.invalid` domain, so pressing Check on one fails by design.
 
 To use the spec in another tool, import `https://raw.githubusercontent.com/Danielkgr/legislation-monitor/main/public/openapi.json` into Postman (Import, then Link), Insomnia, or Hoppscotch.  To generate a typed client, point [openapi-typescript](https://github.com/openapi-ts/openapi-typescript) at the same URL.
 
@@ -351,6 +380,7 @@ legislation-monitor/
       changes.ts            Change history query
       check.ts              Check pipeline: fetch, hash, store, diff, map, brief
       db.ts                 SQLite schema, seeding, migrations and queries
+      demo.ts               Fictional demo Acts for screenshots and walkthroughs
       diff.ts               Text-diff engine
       digest.ts             Check every Act and build the digest
       brief.ts              Brief prompt, JSON schema, validation and heuristic fallback
@@ -362,6 +392,8 @@ legislation-monitor/
     types/                  TypeScript declarations
   scripts/
     check-all.ts            npm run check-all
+    demo-seed.ts            npm run demo:seed
+  docs/images/              Screenshots taken from the demo database
   .github/workflows/ci.yml  Lint, format check, type check, tests and build
   .data/                    Local SQLite database (ignored by git)
   public/                   Static assets and openapi.json
