@@ -1,4 +1,4 @@
-import { type Act, connectDB, type Version } from "./db";
+import { type Act, connectDB, incrementPendingChanges, type Version } from "./db";
 import { analyzeChanges } from "./diff";
 import { type ChangeBrief, generateChangeBrief } from "./llm";
 import { type ScraperResult, scrapeAct } from "./scrapers";
@@ -152,6 +152,7 @@ async function recordChange(
         JSON.stringify(sectionDetails),
       ).lastInsertRowid,
   );
+  incrementPendingChanges();
 
   return {
     id,

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { listChanges } from "./changes";
 import { ActNotFoundError, checkAct, type Scraper } from "./check";
-import { connectDB } from "./db";
+import { connectDB, getPendingChanges } from "./db";
 import { hashText } from "./scrapers";
 import { useTestDatabase } from "./test-db";
 
@@ -48,6 +48,7 @@ describe("checkAct", () => {
     expect(result).toMatchObject({ hasChange: false, baseline: true, change: null });
     expect(result.new_version_count).toBe(1);
     expect(listChanges(actId)).toHaveLength(0);
+    expect(getPendingChanges()).toBe(0);
   });
 
   it("stores nothing new when the text is unchanged", async () => {
@@ -69,6 +70,7 @@ describe("checkAct", () => {
     const [stored] = listChanges(actId);
     expect(stored.id).toBe(result.change?.id);
     expect(stored.summary).toBe(result.change?.summary);
+    expect(getPendingChanges()).toBe(1);
   });
 
   it("compares with the latest version, so a reverted text is a change", async () => {
@@ -78,6 +80,7 @@ describe("checkAct", () => {
     const result = await checkAct(actId, serve(V1));
     expect(result.hasChange).toBe(true);
     expect(listChanges(actId)).toHaveLength(2);
+    expect(getPendingChanges()).toBe(2);
   });
 
   it("throws ActNotFoundError for an unknown Act", async () => {

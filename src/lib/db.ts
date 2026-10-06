@@ -214,6 +214,29 @@ export function setSetting(key: string, value: string): void {
   ).run(key, value);
 }
 
+// --- Pending-changes counter: changes recorded since the user last dismissed them ---
+
+const PENDING_KEY = "pending_changes_count";
+
+export function getPendingChanges(): number {
+  const n = Number.parseInt(getSetting(PENDING_KEY) ?? "0", 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export function incrementPendingChanges(): void {
+  connectDB()
+    .prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, '1', datetime('now'))
+       ON CONFLICT(key) DO UPDATE
+       SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT), updated_at = datetime('now')`,
+    )
+    .run(PENDING_KEY);
+}
+
+export function resetPendingChanges(): void {
+  setSetting(PENDING_KEY, "0");
+}
+
 export function getAllSettings(): Record<string, string> {
   const d = connectDB();
   const rows = d.prepare("SELECT key, value FROM settings").all() as Array<Record<string, unknown>>;

@@ -141,13 +141,13 @@ export default function Dashboard() {
               <button
                 onClick={dismissPending}
                 className="flex items-center gap-1.5 text-xs text-accent animate-fade-in hover:text-accent-light transition-colors"
-                title={`Automated check detected ${pendingCount} new change${pendingCount > 1 ? "s" : ""}. Click to dismiss.`}
+                title={`${pendingCount} change${pendingCount !== 1 ? "s" : ""} recorded since you last dismissed this. Click to dismiss.`}
               >
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-accent" />
                 </span>
-                {pendingCount} new{pendingCount > 1 ? "s" : ""}
+                {pendingCount} new change{pendingCount !== 1 ? "s" : ""}
               </button>
             )}
             <CheckButton
