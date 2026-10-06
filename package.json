@@ -6,6 +6,7 @@
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
+    "check-all": "tsx scripts/check-all.ts",
     "lint": "eslint",
     "format": "biome format --write .",
     "format:check": "biome format .",
@@ -32,6 +33,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }
