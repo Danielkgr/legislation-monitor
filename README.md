@@ -38,7 +38,7 @@ The app runs against both live registers, and 22 Vitest unit tests cover the dif
 | **Act tracking** | Adding an Act of Parliament, Commonwealth or Victorian, stores a baseline snapshot in SQLite straight away. |
 | **Change detection** | A check (the **Check** button, or `POST /api/acts/:id/check`) fetches the Act's HTML again, hashes the extracted text, and flags anything that differs from the last stored version.  Periodic checking is left to an external cron job. |
 | **Side-by-side diffs** | The diff viewer marks inserted, deleted, and modified sections. |
-| **Change briefs** | With an OpenAI-compatible LLM endpoint configured (on the Settings page or through `POST /api/settings`), each detected change gets a brief with a summary, the key changes, who is affected, why it matters, and how significant it is.  Without an LLM, a deterministic heuristic writes the brief instead, and every brief records which of the two produced it. |
+| **Change briefs** | Each detected change gets a brief with a summary, the key changes, who is affected, why it matters, and a significance score from 0 to 10.  Claude writes it when an Anthropic API key is set, or any OpenAI-compatible endpoint, such as a local model, when one is configured.  Otherwise a deterministic heuristic writes it.  Every brief records who wrote it, and a heuristic brief written because a model call failed says why. |
 | **Dashboard** | One page shows how many Acts are being watched, the split by jurisdiction, and the number of new changes in the last seven days. |
 | **REST API** | Every feature has an endpoint, such as `/api/acts` and `/api/changes/:actId`, for alerts or other tools to call. |
 
@@ -230,6 +230,27 @@ Framework settings, such as rewrites, redirects, and environment variables, live
 "User-Agent": "LegislationMonitor/1.0 (+https://github.com/Danielkgr/legislation-monitor)"
 ```
 
+### Claude briefs
+
+Choose Claude on the Settings page, or set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`.  The call lives in `src/lib/llm-anthropic.ts` and uses the official `@anthropic-ai/sdk`.
+
+| Setting | What it does |
+|---|---|
+| **Model** | `claude-opus-5-5` by default, or `claude-sonnet-5-5`, from the Settings page or `ANTHROPIC_MODEL` |
+| **Effort** | `low` by default, from the Settings page or `ANTHROPIC_EFFORT`, because a brief is short |
+| **Output** | Structured outputs with a JSON schema for the brief.  The reply is validated before it is stored |
+| **Input** | The unified diff between the two versions, cut at 12,000 characters |
+| **Limits** | 16,000 output tokens, a 120-second timeout, and the SDK's two retries for HTTP 408, 409, 429 and 5xx |
+| **Fallbacks** | Server-side fallbacks are on.  If Claude's safeguards decline a request, the API re-runs it on the model Anthropic recommends for that kind of refusal, and the brief records which model wrote it |
+| **Failure** | A refusal, a reply cut off at the token limit, an invalid reply or an API error leaves the change recorded with a heuristic brief that names the reason |
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... LLM_PROVIDER=anthropic npm run dev
+```
+
+> [!NOTE]
+> No live Claude call has been run from this repository yet.  The tests run against a mocked API, so the quality and cost of real briefs are not yet measured.  At list prices Claude Opus 5.5 costs $4 per million input tokens and $20 per million output tokens.
+
 ### Adding a jurisdiction
 
 1. Add the new jurisdiction identifier to the `jurisdiction` type in `src/lib/db.ts`.
@@ -250,6 +271,7 @@ Alerts sit outside the app.  A cron job, such as Vercel Cron, calls `POST /api/a
 | **Database** | [better-sqlite3](https://github.com/WiseLibs/better-sqlite3), a local SQLite file in WAL mode |
 | **Scraping** | [Cheerio](https://cheerio.js.org/) for server-side HTML parsing |
 | **Diffing** | [jsdiff](https://github.com/kpdecker/jsdiff) |
+| **Change briefs** | [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) for Claude, or any OpenAI-compatible endpoint |
 | **API docs** | [Swagger UI](https://github.com/swagger-api/swagger-ui) |
 | **Tests** | [Vitest](https://vitest.dev/) |
 
@@ -274,7 +296,9 @@ legislation-monitor/
     lib/
       db.ts                 SQLite schema, seeding, and queries
       diff.ts               Text-diff engine
-      llm.ts                Optional LLM change briefs, with the heuristic fallback
+      brief.ts              Brief prompt, JSON schema, validation and heuristic fallback
+      llm.ts                Provider switch and the OpenAI-compatible endpoint
+      llm-anthropic.ts      Claude briefs through the Anthropic SDK
       scrapers.ts           Federal and Victorian scrapers
       structure.ts          Table-of-contents parsing for section-precise diffs
     types/                  TypeScript declarations

@@ -105,4 +105,79 @@ describe("generateChangeBrief", () => {
       expect(brief.fallbackReason).toMatch(/no parseable brief/);
     });
   });
+
+  describe("with Claude", () => {
+    beforeEach(() => {
+      process.env.LLM_PROVIDER = "anthropic";
+    });
+
+    it("labels a Claude-written brief and records the model", async () => {
+      process.env.ANTHROPIC_API_KEY = "test-key";
+      const fetchMock = vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              id: "msg_test",
+              type: "message",
+              role: "assistant",
+              model: "claude-opus-5-5",
+              content: [{ type: "text", text: JSON.stringify(MODEL_BRIEF) }],
+              stop_reason: "end_turn",
+              stop_sequence: null,
+              stop_details: null,
+              usage: { input_tokens: 100, output_tokens: 50 },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const brief = await generateChangeBrief(PARAMS);
+
+      expect(brief).toEqual({ ...MODEL_BRIEF, source: "claude", model: "claude-opus-5-5" });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back to the heuristic and says why when Claude declines", async () => {
+      process.env.ANTHROPIC_API_KEY = "test-key";
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                id: "msg_test",
+                type: "message",
+                role: "assistant",
+                model: "claude-opus-5-5",
+                content: [],
+                stop_reason: "refusal",
+                stop_details: { type: "refusal", category: null, explanation: null },
+                usage: { input_tokens: 100, output_tokens: 0 },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            ),
+        ),
+      );
+
+      const brief = await generateChangeBrief(PARAMS);
+
+      expect(brief.source).toBe("heuristic");
+      expect(brief.fallbackReason).toBe("Claude declined to write this brief");
+    });
+
+    it("stays on the heuristic when Claude is chosen but no key is set", async () => {
+      process.env.LLM_ENABLED = "true";
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      const brief = await generateChangeBrief(PARAMS);
+
+      expect(brief).toMatchObject({
+        source: "heuristic",
+        fallbackReason: "no Claude API key is set",
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 });
