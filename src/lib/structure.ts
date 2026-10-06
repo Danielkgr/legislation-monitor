@@ -203,9 +203,8 @@ interface FlatNode {
 
 /**
  * Build a hierarchical tree from a flat list of TOC nodes ordered by
- * document appearance. Children are assigned based on nesting depth —
- * a node with deeper level becomes a child of its closest ancestor with
- * shallower level.
+ * document appearance.  A node becomes a child of the closest earlier node
+ * with a shallower level, so headings at the same level are siblings.
  */
 function buildTree(flat: FlatNode[]): TocNode[] {
   const root: TocNode[] = [];
@@ -222,8 +221,9 @@ function buildTree(flat: FlatNode[]): TocNode[] {
       children: [],
     };
 
-    // Pop stack until we find a parent with shallower or equal level
-    while (stack.length > 0 && stack[stack.length - 1].level > node.level) {
+    // Pop until the top of the stack is shallower, so a heading at the same
+    // level becomes a sibling rather than a child.
+    while (stack.length > 0 && stack[stack.length - 1].level >= node.level) {
       stack.pop();
     }
 
