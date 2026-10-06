@@ -49,9 +49,9 @@ Each jurisdiction has its own scraper, tuned to the structure of its register.
 | Register | Approach |
 |---|---|
 | **Federal** ([legislation.gov.au](https://www.legislation.gov.au)) | Parses the server-rendered HTML with Cheerio and extracts the page title and main content.  If the primary selectors miss, it falls back through several others. |
-| **Victorian** ([legislation.vic.gov.au](https://www.legislation.vic.gov.au)) | The register runs on the Tide framework.  The scraper tries a direct fetch, then the listing page, then search.  When content is rendered client-side and missing from the first HTML response, it falls back to heuristics based on the URL. |
+| **Victorian** ([legislation.vic.gov.au](https://www.legislation.vic.gov.au)) | The register runs on the Tide framework.  The scraper reads the Act page and rejects anything that is not one, such as the register's "page not found" page.  When it cannot read the Act, the check fails with an error and stores nothing, so an outage never shows up as an amendment. |
 
-Both scrapers retry twice, waiting 1 s and then 2 s, with a 30-second timeout on each attempt.  Both hash the normalised text with SHA-256 to detect change.
+Both scrapers retry network errors, timeouts, HTTP 429 and 5xx responses twice, waiting 1 s and then 2 s, with a 30-second timeout on each attempt.  Other 4xx responses, such as 404, fail at once.  Both hash the normalised text with SHA-256 to detect change.
 
 ### Database
 
