@@ -2,17 +2,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 
-interface DB {
-  exec(sql: string): void;
-  pragma(str: string): unknown;
-  prepare<T = Record<string, unknown>>(sql: string): Statement;
-}
-
-interface Statement {
-  get(...args: unknown[]): Record<string, unknown> | undefined;
-  all(...args: unknown[]): Record<string, unknown>[];
-  run(...args: unknown[]): { lastInsertRowid: number; changes: number };
-}
+type DB = Database.Database;
 
 const DB_DIR = path.join(process.cwd(), ".data");
 const DB_PATH = path.join(DB_DIR, "legislation.db");
@@ -24,7 +14,7 @@ let db: DB | null = null;
 
 function connectDB(): DB {
   if (!db) {
-    db = new Database(DB_PATH) as unknown as DB;
+    db = new Database(DB_PATH);
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = on");
     initSchema();
