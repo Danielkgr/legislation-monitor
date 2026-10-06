@@ -9,6 +9,8 @@ import { useTestDatabase } from "./test-db";
 const V1 = ["Part 1 - Preliminary", "Section 5 - Definitions", "A widget is a small device."].join(
   "\n",
 );
+const V1_HTML =
+  "<html><body><h2>Part 1 - Preliminary</h2><h4>Section 5 - Definitions</h4></body></html>";
 const V2 = [
   "Part 1 - Preliminary",
   "Section 5 - Definitions",
@@ -81,6 +83,15 @@ describe("checkAct", () => {
     expect(result.hasChange).toBe(true);
     expect(listChanges(actId)).toHaveLength(2);
     expect(getPendingChanges()).toBe(2);
+  });
+
+  it("maps the change to sections from the previous version's table of contents", async () => {
+    const actId = addAct();
+    await checkAct(actId, serve(V1, V1_HTML));
+    const result = await checkAct(actId, serve(V2));
+    expect(result.change?.section_details).toContainEqual(
+      expect.objectContaining({ sectionNumber: "5", changeType: "modified" }),
+    );
   });
 
   it("throws ActNotFoundError for an unknown Act", async () => {
