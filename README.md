@@ -4,7 +4,7 @@
 
 ### Change detection for Commonwealth and Victorian legislation, with a side-by-side diff of every amendment
 
-![2 jurisdictions](https://img.shields.io/badge/jurisdictions-Cth_and_Vic-0969da?style=for-the-badge) ![22 tests](https://img.shields.io/badge/tests-22-0969da?style=for-the-badge) ![local SQLite storage](https://img.shields.io/badge/storage-local_SQLite-8250df?style=for-the-badge) ![Next.js 16](https://img.shields.io/badge/Next.js-16-57606a?style=for-the-badge&logo=nextdotjs&logoColor=white) ![MIT licence](https://img.shields.io/badge/licence-MIT-57606a?style=for-the-badge)
+![2 jurisdictions](https://img.shields.io/badge/jurisdictions-Cth_and_Vic-0969da?style=for-the-badge) [![CI](https://img.shields.io/github/actions/workflow/status/Danielkgr/legislation-monitor/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/Danielkgr/legislation-monitor/actions/workflows/ci.yml) ![local SQLite storage](https://img.shields.io/badge/storage-local_SQLite-8250df?style=for-the-badge) ![Next.js 16](https://img.shields.io/badge/Next.js-16-57606a?style=for-the-badge&logo=nextdotjs&logoColor=white) ![MIT licence](https://img.shields.io/badge/licence-MIT-57606a?style=for-the-badge)
 
 </div>
 
