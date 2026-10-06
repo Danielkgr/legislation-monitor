@@ -1,154 +1,15 @@
 import { NextResponse } from "next/server";
-import { type Act, connectDB, type Version } from "@/lib/db";
-import { scrapeAct } from "@/lib/scrapers";
-import { analyzeChanges } from "@/lib/diff";
-import { type ChangeBrief, generateChangeBrief } from "@/lib/llm";
-import {
-  serializeTOCFromHTML,
-  deserializeTOC,
-  identifyAffectedSectionsEnriched,
-} from "@/lib/structure";
-
-interface CheckedChange {
-  id: number;
-  summary: string;
-  sections_changed: string[];
-  affected_groups: string[];
-  change_count: number;
-  brief: ChangeBrief;
-  section_details: unknown[];
-}
+import { ActNotFoundError, checkAct } from "@/lib/check";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const db = connectDB();
   const { id } = await params;
 
   try {
-    const act = db.prepare<[string], Act>("SELECT * FROM acts WHERE id = ?").get(id);
-    if (!act) {
+    return NextResponse.json(await checkAct(id));
+  } catch (err) {
+    if (err instanceof ActNotFoundError) {
       return NextResponse.json({ error: "Act not found" }, { status: 404 });
     }
-
-    // Fetch current version
-    const scrapeResult = await scrapeAct(act.url, act.jurisdiction);
-
-    // Check if content has changed since the latest version
-    const latestVersion = db
-      .prepare<[string], Version>(
-        `SELECT * FROM versions WHERE act_id = ? ORDER BY fetched_at DESC LIMIT 1`,
-      )
-      .get(id);
-
-    let newVersionId: number | null = null;
-    let changeRecord: CheckedChange | null = null;
-
-    // Store new version
-    const existingVersions = db
-      .prepare<[string], Pick<Version, "content_hash">>(
-        "SELECT content_hash FROM versions WHERE act_id = ?",
-      )
-      .all(id);
-    const existingHashes = new Set(existingVersions.map((v) => v.content_hash));
-
-    if (!existingHashes.has(scrapeResult.contentHash)) {
-      // New version detected — parse TOC structure from raw HTML if available
-      const structure = scrapeResult.rawHtml ? serializeTOCFromHTML(scrapeResult.rawHtml) : null;
-
-      const insertVersion = db.prepare(
-        `INSERT INTO versions (act_id, version_label, content_hash, plain_text, source_url, structure) VALUES (?, ?, ?, ?, ?, ?)`,
-      );
-      const result = insertVersion.run(
-        id,
-        scrapeResult.versionLabel,
-        scrapeResult.contentHash,
-        scrapeResult.plainText,
-        act.url,
-        structure,
-      );
-      newVersionId = Number(result.lastInsertRowid);
-
-      // Compare with previous version if one exists
-      if (latestVersion) {
-        const oldText = latestVersion.plain_text || "";
-        const newText = scrapeResult.plainText;
-
-        if (oldText && newText !== oldText) {
-          const diffResult = analyzeChanges(oldText, newText, act.title);
-
-          // Use parsed TOC structure (from previous version) for section-precise enrichment
-          let enrichedDetails: string | null = null;
-          if (latestVersion.structure) {
-            try {
-              const toc = deserializeTOC(latestVersion.structure);
-              const details = identifyAffectedSectionsEnriched(
-                toc,
-                oldText.split("\n"),
-                newText.split("\n"),
-              );
-              enrichedDetails = JSON.stringify(details);
-            } catch (parseErr) {
-              console.warn("Failed to enrich section analysis:", parseErr);
-            }
-          }
-
-          // Structured, stakeholder-facing brief — LLM when configured,
-          // otherwise the deterministic heuristic. Never blocks on LLM failure.
-          const brief = await generateChangeBrief({
-            actTitle: act.title,
-            oldText,
-            newText,
-            heuristic: diffResult,
-          });
-
-          // Store sections, affected groups, section_details and the full brief as JSON
-          const sectionsJson = JSON.stringify(diffResult.changedSections.slice(0, 10));
-          const affectedJson = JSON.stringify(diffResult.affectedGroups);
-          const sectionDetailsJson = enrichedDetails ?? JSON.stringify([]);
-          const briefJson = JSON.stringify(brief);
-
-          const insertChange = db.prepare(
-            `INSERT INTO changes (act_id, version_from_id, version_to_id, summary, sections_changed, affected_groups, change_count, brief, section_details)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          );
-          const changeRes = insertChange.run(
-            id,
-            latestVersion.id,
-            newVersionId,
-            brief.summary,
-            sectionsJson,
-            affectedJson,
-            diffResult.addedLines + diffResult.removedLines,
-            briefJson,
-            sectionDetailsJson,
-          );
-          changeRecord = {
-            id: Number(changeRes.lastInsertRowid),
-            summary: brief.summary,
-            sections_changed: diffResult.changedSections.slice(0, 10),
-            affected_groups: diffResult.affectedGroups,
-            change_count: diffResult.addedLines + diffResult.removedLines,
-            brief,
-            section_details: JSON.parse(sectionDetailsJson),
-          };
-        }
-      }
-
-      // Update act's updated_at timestamp
-      db.prepare("UPDATE acts SET updated_at = datetime('now') WHERE id = ?").run(id);
-    }
-
-    return NextResponse.json({
-      success: true,
-      hasChange: !!newVersionId,
-      change: changeRecord,
-      new_version_count:
-        db
-          .prepare<[string], { cnt: number }>(
-            "SELECT COUNT(*) as cnt FROM versions WHERE act_id = ?",
-          )
-          .get(id)?.cnt ?? 0,
-    });
-  } catch (err) {
     console.error("Error checking act:", err);
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
