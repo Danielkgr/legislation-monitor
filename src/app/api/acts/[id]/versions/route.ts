@@ -17,11 +17,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
        FROM versions v
        JOIN acts a ON a.id = v.act_id
        WHERE v.act_id = ?
-       ORDER BY v.fetched_at DESC`,
+       ORDER BY v.fetched_at DESC, v.id DESC`,
       )
       .all(id);
 
-    return NextResponse.json(versions);
+    // Return metadata as an object rather than a JSON string.
+    return NextResponse.json(
+      versions.map((v) => ({ ...v, metadata: v.metadata ? JSON.parse(v.metadata) : null })),
+    );
   } catch (err) {
     console.error("Error getting versions:", err);
     return NextResponse.json({ error: "Failed to get versions" }, { status: 500 });

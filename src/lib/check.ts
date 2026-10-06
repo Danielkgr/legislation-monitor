@@ -65,8 +65,8 @@ export async function checkAct(
     const versionId = Number(
       db
         .prepare(
-          `INSERT INTO versions (act_id, version_label, content_hash, plain_text, source_url, structure)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO versions (act_id, version_label, content_hash, plain_text, source_url, structure, metadata)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           act.id,
@@ -75,6 +75,7 @@ export async function checkAct(
           scraped.plainText,
           act.url,
           structure,
+          scraped.metadata ? JSON.stringify(scraped.metadata) : null,
         ).lastInsertRowid,
     );
 
