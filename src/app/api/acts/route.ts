@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import { scrapeAct } from "@/lib/scrapers";
+import { type Act, type ActSummary, connectDB } from "@/lib/db";
+import { checkAct } from "@/lib/check";
+import { normaliseActUrl, UrlError } from "@/lib/registers";
 
 export async function GET() {
   const db = connectDB();
   try {
     const acts = db
-      .prepare(
+      .prepare<[], ActSummary>(
         `SELECT a.*,
         (SELECT COUNT(*) FROM versions WHERE act_id = a.id) as version_count,
         (SELECT fetched_at FROM versions WHERE act_id = a.id ORDER BY fetched_at DESC LIMIT 1) as last_checked,
@@ -14,7 +15,7 @@ export async function GET() {
       FROM acts a
       ORDER BY a.updated_at DESC`,
       )
-      .all() as any[];
+      .all();
 
     return NextResponse.json(acts);
   } catch (err) {
@@ -27,9 +28,10 @@ export async function POST(req: NextRequest) {
   const db = connectDB();
   try {
     const body = await req.json();
-    const { title, url, jurisdiction } = body;
+    const { title, url: rawUrl } = body;
+    const jurisdiction = body.jurisdiction ?? "federal";
 
-    if (!title || !url) {
+    if (!title || !rawUrl) {
       return NextResponse.json({ error: "Title and URL are required" }, { status: 400 });
     }
 
@@ -38,6 +40,17 @@ export async function POST(req: NextRequest) {
         { error: "Jurisdiction must be 'federal' or 'vic'" },
         { status: 400 },
       );
+    }
+
+    // Store the URL that always serves the latest version of the Act.
+    let url: string;
+    try {
+      url = normaliseActUrl(String(rawUrl), jurisdiction);
+    } catch (err) {
+      if (err instanceof UrlError) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+      throw err;
     }
 
     // Check for duplicate URL
@@ -55,22 +68,15 @@ export async function POST(req: NextRequest) {
       .prepare("INSERT INTO acts (title, url, jurisdiction) VALUES (?, ?, ?)")
       .run(title, url, jurisdiction);
 
-    const act = db.prepare("SELECT * FROM acts WHERE id = ?").get(result.lastInsertRowid) as any;
+    const act = db
+      .prepare<[number | bigint], Act>("SELECT * FROM acts WHERE id = ?")
+      .get(result.lastInsertRowid);
+    if (!act) throw new Error("Inserted Act could not be read back");
 
-    // Immediately fetch the first version
+    // Capture the baseline version straight away.  A failed scrape still
+    // leaves the Act watched; the next check stores the baseline.
     try {
-      const scrapeResult = await scrapeAct(url, jurisdiction as "federal" | "vic");
-      db.prepare(
-        `INSERT INTO versions (act_id, version_label, content_hash, plain_text, source_url) VALUES (?, ?, ?, ?, ?)`,
-      ).run(
-        act.id,
-        scrapeResult.versionLabel,
-        scrapeResult.contentHash,
-        scrapeResult.plainText,
-        url,
-      );
-
-      db.prepare("UPDATE acts SET updated_at = datetime('now') WHERE id = ?").run(act.id);
+      await checkAct(act.id);
     } catch (scrapeErr) {
       console.warn(`Initial scrape failed for ${title}:`, scrapeErr);
     }

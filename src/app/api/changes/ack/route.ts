@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
+import { resetPendingChanges } from "@/lib/db";
 
+/** Reset the pending-changes counter once the user has seen the changes. */
 export async function POST() {
   try {
-    const db = await import("@/lib/db").then((m) => m.connectDB());
-    db.prepare(
-      "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('pending_changes_count', '0', datetime('now'))",
-    ).run();
-
+    resetPendingChanges();
     return NextResponse.json({ pending: 0 });
-  } catch {
+  } catch (err) {
+    console.error("Error resetting the pending-changes counter:", err);
     return NextResponse.json({ error: "Failed to acknowledge." }, { status: 500 });
   }
 }

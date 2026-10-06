@@ -1,20 +1,15 @@
 import { NextResponse } from "next/server";
+import { getPendingChanges } from "@/lib/db";
 
+/** Changes recorded since the user last acknowledged them. */
 export async function GET() {
   try {
-    const db = await import("@/lib/db").then((m) => m.connectDB());
-    const row = db
-      .prepare("SELECT value FROM settings WHERE key = 'pending_changes_count'")
-      .get() as { value: string } | undefined;
-
-    let count = 0;
-    if (row && typeof row.value === "string") {
-      const parsed = parseInt(row.value, 10);
-      if (!isNaN(parsed) && parsed >= 0) count = parsed;
-    }
-
-    return NextResponse.json({ pending: count });
-  } catch {
-    return NextResponse.json({ pending: 0 });
+    return NextResponse.json({ pending: getPendingChanges() });
+  } catch (err) {
+    console.error("Error reading the pending-changes counter:", err);
+    return NextResponse.json(
+      { error: "Failed to read the pending-changes counter" },
+      { status: 500 },
+    );
   }
 }

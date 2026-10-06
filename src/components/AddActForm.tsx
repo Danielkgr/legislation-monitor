@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { KNOWN_ACTS } from "@/lib/catalogue";
 
 interface AddActFormProps {
   onSuccess: () => void;
@@ -34,36 +35,15 @@ export default function AddActForm({ onSuccess, onCancel }: AddActFormProps) {
         const data = await res.json();
         setError(data.error || "Failed to add Act");
       }
-    } catch (err) {
+    } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Quick-fill presets
-  const presets = {
-    federal: [
-      { title: "Privacy Act 1988", url: "https://www.legislation.gov.au/Details/C2024C00026" },
-      { title: "Corporations Act 2001", url: "https://www.legislation.gov.au/Details/C2024C00001" },
-      {
-        title: "Work Health and Safety Act 2011",
-        url: "https://www.legislation.gov.au/Details/C2024C00070",
-      },
-    ],
-    vic: [
-      {
-        title: "Crimes Act 1958",
-        url: "https://www.legislation.vic.gov.uk/html/in-force/act/100/1958/amends",
-      },
-      {
-        title: "Health Practitioner Regulation National Law (Vic)",
-        url: "https://www.legislation.vic.gov.au/html/in-force/act/324/2008/amends",
-      },
-    ],
-  };
-
-  const currentPresets = presets[jurisdiction];
+  // Quick-fill presets: the same verified Acts that are seeded on first run.
+  const currentPresets = KNOWN_ACTS.filter((a) => a.jurisdiction === jurisdiction);
 
   return (
     <form onSubmit={handleSubmit} className="p-6">
@@ -136,7 +116,11 @@ export default function AddActForm({ onSuccess, onCancel }: AddActFormProps) {
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder={`https://www.legislation.gov.au/Details/C2024C00001`}
+          placeholder={
+            jurisdiction === "federal"
+              ? "https://www.legislation.gov.au/C2004A03712/latest/text"
+              : "https://www.legislation.vic.gov.au/in-force/acts/crimes-act-1958"
+          }
           className="w-full px-3 py-2.5 border border-white/10 bg-background/50 rounded-lg text-sm font-mono placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/60 transition-all"
           required
         />
