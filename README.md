@@ -55,6 +55,33 @@ It is a working prototype.  The scrapers follow each register's URL scheme and m
 
 ## How it works
 
+A check runs the same pipeline whether it starts from the app, the API or `npm run check-all`.
+
+```mermaid
+flowchart TD
+    UI["Dashboard and Act pages"] -->|Check button| API["REST API"]
+    CLI["npm run check-all"] --> CHECK
+    API --> CHECK["Check pipeline"]
+    CHECK --> FETCH["Fetch the Act's latest-version page from its register"]
+    FETCH --> NORM["Extract and normalise the text"]
+    NORM --> HASH{"Does the SHA-256 hash differ from the latest stored version?"}
+    HASH -->|No| SAME["Nothing new is stored"]
+    HASH -->|Yes| VERSION["Store the new version with its table of contents and compilation details"]
+    VERSION --> DIFF["Line diff against the previous version"]
+    DIFF --> MAP["Map the changed lines to Parts and sections"]
+    MAP --> BRIEF{"Brief provider"}
+    BRIEF --> CLAUDE["Claude, through the Anthropic SDK"]
+    BRIEF --> LOCAL["Local model, through an OpenAI-compatible endpoint"]
+    BRIEF --> HEUR["Heuristic, also the fallback when a model call fails"]
+    CLAUDE --> RECORD["Record the change and count it as pending"]
+    LOCAL --> RECORD
+    HEUR --> RECORD
+    VERSION --> DB[("SQLite")]
+    RECORD --> DB
+    DB --> API
+    API -->|History, diffs and briefs| UI
+```
+
 | Feature | What happens |
 |---|---|
 | **Act tracking** | Adding an Act of Parliament, Commonwealth or Victorian, stores a baseline snapshot in SQLite straight away. |
