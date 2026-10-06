@@ -27,7 +27,10 @@ It is a working prototype.  The scrapers follow each register's URL scheme and m
 
 ## Results
 
-The app runs against both live registers, and 22 Vitest unit tests cover the diff engine, the scrapers, and the table-of-contents parser that makes diffs precise to the section.  The repository publishes no measurement of how reliably it catches real amendments over time.
+112 Vitest tests cover the diff engine, the scrapers and register URL handling on synthetic HTML fixtures, the table-of-contents parser that maps a change to its sections, the check pipeline, the briefs with the Claude and OpenAI-compatible APIs mocked, the digest script and the API routes.  CI runs them with lint, a format check, a type check and a production build on every push.
+
+> [!NOTE]
+> This version has not yet been run against the live registers or the live Claude API.  The repository publishes no measurement of how reliably it catches real amendments over time.
 
 <br>
 
@@ -333,8 +336,9 @@ legislation-monitor/
   src/
     app/                    Next.js App Router
       api/
-        acts/               Create, read, and delete watched Acts
-        changes/            Diff generation and change history
+        acts/               Create, read, delete and check watched Acts
+        changes/            Change history, export and the pending-changes counter
+        settings/           Brief provider settings
       acts/[id]/            Detail and diff pages for each Act
       docs/                 Swagger UI, serving the OpenAPI spec
       globals.css           Tailwind layer styles
@@ -343,14 +347,22 @@ legislation-monitor/
       settings/             LLM endpoint settings page
     components/             ActCard, AddActForm, CheckButton, DiffViewer
     lib/
-      db.ts                 SQLite schema, seeding, and queries
+      catalogue.ts          Verified Acts used for seeding and quick-add presets
+      changes.ts            Change history query
+      check.ts              Check pipeline: fetch, hash, store, diff, map, brief
+      db.ts                 SQLite schema, seeding, migrations and queries
       diff.ts               Text-diff engine
+      digest.ts             Check every Act and build the digest
       brief.ts              Brief prompt, JSON schema, validation and heuristic fallback
       llm.ts                Provider switch and the OpenAI-compatible endpoint
       llm-anthropic.ts      Claude briefs through the Anthropic SDK
+      registers.ts          Register URL normalisation to the latest version
       scrapers.ts           Federal and Victorian scrapers
       structure.ts          Table-of-contents parsing for section-precise diffs
     types/                  TypeScript declarations
+  scripts/
+    check-all.ts            npm run check-all
+  .github/workflows/ci.yml  Lint, format check, type check, tests and build
   .data/                    Local SQLite database (ignored by git)
   public/                   Static assets and openapi.json
   package.json
