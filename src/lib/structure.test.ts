@@ -24,6 +24,10 @@ describe("parseTOC", () => {
     const toc = parseTOC($);
 
     expect(toc.all).toHaveLength(4);
+    expect(toc.root.map((n) => n.title)).toEqual([
+      "Part 1 - Preliminary",
+      "Part 2 - Administration",
+    ]);
     expect(toc.root[0].type).toBe("part");
     expect(toc.root[0].title).toBe("Part 1 - Preliminary");
     expect(toc.sections.get("3")?.title).toBe("Section 3 - Definitions");
@@ -73,9 +77,19 @@ describe("heading hierarchy", () => {
     const $ = cheerio.load(html);
     const toc = parseTOC($);
 
-    expect(toc.root[0].children.length).toBeGreaterThan(0); // part has children (divisions)
-    const divB = toc.all.find((n) => n.title === "Division 2 - Offences")!;
-    expect(divB.children.some((c) => c.title === "Section 5 - Summary offence")).toBe(true);
+    // The Part holds both Divisions as siblings, and each Division its own sections.
+    expect(toc.root).toHaveLength(1);
+    expect(toc.root[0].children.map((c) => c.title)).toEqual([
+      "Division 1 - Preliminary",
+      "Division 2 - Offences",
+    ]);
+    expect(toc.root[0].children[0].children.map((c) => c.title)).toEqual([
+      "Section 1 - Scope",
+      "Section 2 - Application",
+    ]);
+    expect(toc.root[0].children[1].children.map((c) => c.title)).toEqual([
+      "Section 5 - Summary offence",
+    ]);
   });
 });
 
