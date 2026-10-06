@@ -1,6 +1,8 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import { KNOWN_ACTS, LEGACY_SEED_URLS } from "./catalogue";
+import { normaliseActUrl } from "./registers";
 
 type DB = Database.Database;
 
@@ -23,6 +25,7 @@ function connectDB(): DB {
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = on");
     initSchema();
+    migrateActUrls();
     // SEED_DEFAULT_ACTS=false starts with an empty watch list (tests, demos).
     if (process.env.SEED_DEFAULT_ACTS !== "false") seedIfEmpty();
   }
@@ -96,6 +99,11 @@ function initSchema() {
     db!.exec("ALTER TABLE versions ADD COLUMN structure TEXT");
   }
 
+  // Add `metadata` column for compilation or version facts read from the page.
+  if (!versionsCols.some((c) => c.name === "metadata")) {
+    db!.exec("ALTER TABLE versions ADD COLUMN metadata TEXT");
+  }
+
   // content_diffs held a copy of the first 500 lines of each side of a change.
   // Nothing read it, and versions.plain_text already holds the full text.
   db!.exec("DROP TABLE IF EXISTS content_diffs");
@@ -107,47 +115,45 @@ function initSchema() {
   }
 }
 
-// Seed data — real Acts from both jurisdictions
+/** Seed the watch list with the catalogue of verified Acts on first run. */
 function seedIfEmpty() {
-  const count: { cnt: number } = db!
-    .prepare("SELECT COUNT(*) as cnt FROM acts")
-    .get() as unknown as { cnt: number };
-  if (count.cnt === 0) {
-    const insert = db!.prepare(`INSERT INTO acts (title, url, jurisdiction) VALUES (?, ?, ?)`);
+  const count = db!.prepare<[], { cnt: number }>("SELECT COUNT(*) AS cnt FROM acts").get();
+  if (count?.cnt === 0) {
+    const insert = db!.prepare("INSERT INTO acts (title, url, jurisdiction) VALUES (?, ?, ?)");
+    for (const act of KNOWN_ACTS) insert.run(act.title, act.url, act.jurisdiction);
+  }
+}
 
-    const federalActs = [
-      {
-        title: "Privacy Act 1988",
-        url: "https://www.legislation.gov.au/Details/C2024C00026",
-        jurisdiction: "federal" as const,
-      },
-      {
-        title: "Corporations Act 2001",
-        url: "https://www.legislation.gov.au/Details/C2024C00001",
-        jurisdiction: "federal" as const,
-      },
-      {
-        title: "Work Health and Safety Act 2011",
-        url: "https://www.legislation.gov.au/Details/C2024C00070",
-        jurisdiction: "federal" as const,
-      },
-    ];
-
-    const vicActs = [
-      {
-        title: "Crimes Act 1958",
-        url: "https://www.legislation.vic.gov.au/in-force/act/crimes-act-1958",
-        jurisdiction: "vic" as const,
-      },
-      {
-        title: "Occupiers Liability Act 1983",
-        url: "https://www.legislation.vic.gov.au/in-force/act/occupiers-liability-act-1983",
-        jurisdiction: "vic" as const,
-      },
-    ];
-
-    for (const act of [...federalActs, ...vicActs]) {
-      insert.run(act.title, act.url, act.jurisdiction);
+/**
+ * Move stored URLs to the form that serves the latest version.  Earlier
+ * releases seeded fixed compilations, which a check can never see change.
+ * A URL that cannot be normalised, or whose normal form another row already
+ * uses, is left as it is.
+ */
+function migrateActUrls() {
+  const acts = db!
+    .prepare<[], Pick<Act, "id" | "title" | "url" | "jurisdiction">>(
+      "SELECT id, title, url, jurisdiction FROM acts",
+    )
+    .all();
+  const taken = new Set(acts.map((a) => a.url));
+  const update = db!.prepare("UPDATE acts SET url = ? WHERE id = ?");
+  for (const act of acts) {
+    const legacy = LEGACY_SEED_URLS[act.url];
+    let next: string;
+    if (legacy && legacy.title === act.title) {
+      next = legacy.url;
+    } else {
+      try {
+        next = normaliseActUrl(act.url, act.jurisdiction);
+      } catch {
+        continue;
+      }
+    }
+    if (next !== act.url && !taken.has(next)) {
+      update.run(next, act.id);
+      taken.delete(act.url);
+      taken.add(next);
     }
   }
 }
@@ -179,6 +185,8 @@ export interface Version {
   source_url: string | null;
   /** JSON-serialized table-of-contents tree (parsed TOC) */
   structure: string | null;
+  /** JSON VersionMetadata: compilation or version facts read from the page */
+  metadata: string | null;
 }
 
 export interface Change {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { type Act, type ActSummary, connectDB } from "@/lib/db";
 import { checkAct } from "@/lib/check";
+import { normaliseActUrl, UrlError } from "@/lib/registers";
 
 export async function GET() {
   const db = connectDB();
@@ -27,9 +28,10 @@ export async function POST(req: NextRequest) {
   const db = connectDB();
   try {
     const body = await req.json();
-    const { title, url, jurisdiction } = body;
+    const { title, url: rawUrl } = body;
+    const jurisdiction = body.jurisdiction ?? "federal";
 
-    if (!title || !url) {
+    if (!title || !rawUrl) {
       return NextResponse.json({ error: "Title and URL are required" }, { status: 400 });
     }
 
@@ -38,6 +40,17 @@ export async function POST(req: NextRequest) {
         { error: "Jurisdiction must be 'federal' or 'vic'" },
         { status: 400 },
       );
+    }
+
+    // Store the URL that always serves the latest version of the Act.
+    let url: string;
+    try {
+      url = normaliseActUrl(String(rawUrl), jurisdiction);
+    } catch (err) {
+      if (err instanceof UrlError) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+      throw err;
     }
 
     // Check for duplicate URL
