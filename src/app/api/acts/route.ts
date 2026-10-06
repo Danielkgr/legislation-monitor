@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
+import { type Act, type ActSummary, connectDB } from "@/lib/db";
 import { scrapeAct } from "@/lib/scrapers";
 
 export async function GET() {
   const db = connectDB();
   try {
     const acts = db
-      .prepare(
+      .prepare<[], ActSummary>(
         `SELECT a.*,
         (SELECT COUNT(*) FROM versions WHERE act_id = a.id) as version_count,
         (SELECT fetched_at FROM versions WHERE act_id = a.id ORDER BY fetched_at DESC LIMIT 1) as last_checked,
@@ -14,7 +14,7 @@ export async function GET() {
       FROM acts a
       ORDER BY a.updated_at DESC`,
       )
-      .all() as any[];
+      .all();
 
     return NextResponse.json(acts);
   } catch (err) {
@@ -55,7 +55,10 @@ export async function POST(req: NextRequest) {
       .prepare("INSERT INTO acts (title, url, jurisdiction) VALUES (?, ?, ?)")
       .run(title, url, jurisdiction);
 
-    const act = db.prepare("SELECT * FROM acts WHERE id = ?").get(result.lastInsertRowid) as any;
+    const act = db
+      .prepare<[number | bigint], Act>("SELECT * FROM acts WHERE id = ?")
+      .get(result.lastInsertRowid);
+    if (!act) throw new Error("Inserted Act could not be read back");
 
     // Immediately fetch the first version
     try {

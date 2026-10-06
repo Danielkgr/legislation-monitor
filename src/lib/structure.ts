@@ -388,7 +388,7 @@ export function identifyAffectedSections(
   linesAfter: string[],
 ): SectionChange[] {
   const affected: SectionChange[] = [];
-  const { added, removed, modified } = computeChanges(linesBefore, linesAfter);
+  const { added, removed } = computeChanges(linesBefore, linesAfter);
 
   for (const line of added) {
     const ctx = getHeadingContext(toc, linesAfter, line);
@@ -402,10 +402,7 @@ export function identifyAffectedSections(
   return affected;
 }
 
-function computeChanges(
-  before: string[],
-  after: string[],
-): { added: number[]; removed: number[]; modified: number[] } {
+function computeChanges(before: string[], after: string[]): { added: number[]; removed: number[] } {
   const added: number[] = [];
   const removed: number[] = [];
 
@@ -423,7 +420,7 @@ function computeChanges(
     if (!used.has(j)) removed.push(j);
   }
 
-  return { added, removed, modified: [] };
+  return { added, removed };
 }
 
 function findClosestLine(lines: string[], needle: string, used: Set<number>): number {

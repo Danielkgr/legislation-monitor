@@ -158,6 +158,13 @@ export interface Act {
   updated_at: string;
 }
 
+/** An Act with the counts the dashboard and detail page show. */
+export interface ActSummary extends Act {
+  version_count: number;
+  last_checked: string | null;
+  recent_changes: number;
+}
+
 export interface Version {
   id: number;
   act_id: number;

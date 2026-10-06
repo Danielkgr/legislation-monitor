@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import AddActForm from "@/components/AddActForm";
 import ActCard from "@/components/ActCard";
@@ -25,31 +25,32 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [jurisdictionFilter, setJurisdictionFilter] = useState<"all" | "federal" | "vic">("all");
 
-  const fetchActs = useCallback(async () => {
-    try {
-      const res = await fetch("/api/acts");
-      if (res.ok) {
-        const data = await res.json();
-        setActs(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch acts:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Bumping reloadKey re-runs the effect that loads the Acts and the
+  // pending-changes counter.
+  const [reloadKey, setReloadKey] = useState(0);
+  const refresh = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
-    fetchActs();
-  }, [fetchActs]);
-
-  // Fetch pending-change count on mount
-  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/acts")
+      .then((res) => (res.ok ? (res.json() as Promise<ActItem[]>) : null))
+      .then((data) => {
+        if (data && !cancelled) setActs(data);
+      })
+      .catch((err) => console.error("Failed to fetch acts:", err))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     fetch("/api/changes/count")
       .then((r) => r.json())
-      .then((data: { pending?: number }) => setPendingCount(data.pending ?? 0))
+      .then((data: { pending?: number }) => {
+        if (!cancelled) setPendingCount(data.pending ?? 0);
+      })
       .catch(() => {});
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   const dismissPending = async () => {
     setPendingCount(0);
@@ -67,7 +68,7 @@ export default function Dashboard() {
     );
     await Promise.all(promises);
     setCheckingAll(false);
-    fetchActs();
+    refresh();
   };
 
   const federalCount = acts.filter((a) => a.jurisdiction === "federal").length;
@@ -408,7 +409,7 @@ export default function Dashboard() {
             <AddActForm
               onSuccess={() => {
                 setShowAddForm(false);
-                fetchActs();
+                refresh();
               }}
               onCancel={() => setShowAddForm(false)}
             />
