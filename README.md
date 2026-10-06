@@ -19,7 +19,7 @@
 A local web app and REST API that watches Acts of Parliament for amendments, repeals, and insertions.  It scrapes the Federal Register of Legislation and the Victorian legislation site, hashes the text it extracts, and flags any difference from the last stored version.
 
 > [!IMPORTANT]
-> It shows what text changed, not what the change means, so it is not a legal research or advice tool.  It covers Commonwealth and Victorian legislation only.  Everything lives in a local SQLite file, with no accounts and no sync.  It sends no notifications of its own, so periodic checking needs an external cron job that calls the check endpoint (see [Adding alerts](#adding-alerts)).
+> It shows what text changed, not what the change means, so it is not a legal research or advice tool.  It covers Commonwealth and Victorian legislation only.  Everything lives in a local SQLite file, with no accounts and no sync.  It does not check on a schedule by itself.  `npm run check-all`, run from cron or a scheduled workflow, checks every Act and can post a digest to Slack or Teams (see [Scheduled checks and alerts](#scheduled-checks-and-alerts)).
 
 It is a working prototype.  The scrapers follow each register's URL scheme and markup, and will need maintenance when either register changes.  The tests run against synthetic HTML fixtures, not the live registers.
 
@@ -36,7 +36,7 @@ The app runs against both live registers, and 22 Vitest unit tests cover the dif
 | Feature | What happens |
 |---|---|
 | **Act tracking** | Adding an Act of Parliament, Commonwealth or Victorian, stores a baseline snapshot in SQLite straight away. |
-| **Change detection** | A check (the **Check** button, or `POST /api/acts/:id/check`) fetches the Act's HTML again, hashes the extracted text, and flags anything that differs from the last stored version.  Periodic checking is left to an external cron job. |
+| **Change detection** | A check (the **Check** button, `POST /api/acts/:id/check`, or `npm run check-all` for every Act) fetches the Act's HTML again, hashes the extracted text, and flags anything that differs from the last stored version. |
 | **Side-by-side diffs** | The diff viewer marks inserted, deleted, and modified sections. |
 | **Change briefs** | Each detected change gets a brief with a summary, the key changes, who is affected, why it matters, and a significance score from 0 to 10.  Claude writes it when an Anthropic API key is set, or any OpenAI-compatible endpoint, such as a local model, when one is configured.  Otherwise a deterministic heuristic writes it.  Every brief records who wrote it, and a heuristic brief written because a model call failed says why. |
 | **Dashboard** | One page shows how many Acts are being watched, the split by jurisdiction, and the number of new changes in the last seven days. |
@@ -100,6 +100,7 @@ Open [http://localhost:3000](http://localhost:3000) for the dashboard.  Seven Ac
 npm run dev           # development server on 127.0.0.1:3000
 npm run build         # production build to .next/
 npm run start         # run the production build on 127.0.0.1:3000
+npm run check-all     # check every watched Act once and print a digest
 npm run lint          # ESLint
 npm run format        # format with Biome
 npm run format:check  # fail if any file needs formatting
@@ -257,9 +258,57 @@ ANTHROPIC_API_KEY=sk-ant-... LLM_PROVIDER=anthropic npm run dev
 2. Write a `scrapeNewJurisdiction()` function in `src/lib/scrapers.ts`, following the federal and Victorian patterns.
 3. Add URL normalisation for the new register to `src/lib/registers.ts`, and any version metadata patterns to `src/lib/scrapers.ts`.
 
-### Adding alerts
+### Scheduled checks and alerts
 
-Alerts sit outside the app.  A cron job, such as Vercel Cron, calls `POST /api/acts/:id/check` for each Act and looks for `hasChange: true` in the response.  It can instead poll `GET /api/acts` for each Act's `recent_changes` count, or `GET /api/changes/count` for the pending total.  When something has changed, the job sends the email, Slack message, or push notification.
+`npm run check-all` checks every watched Act once, one at a time, and prints a digest of what changed, what failed and what stayed the same.  It uses the same database and brief settings as the app, and does not need the app to be running.  It exits with status 1 when any check failed, so cron and CI can tell.
+
+| Variable | Effect |
+|---|---|
+| `DIGEST_WEBHOOK_URL` | Also post the digest to this webhook |
+| `DIGEST_WEBHOOK_FORMAT` | `slack` (the default) sends `{"text": ...}` to a Slack incoming webhook.  `teams` sends an Adaptive Card to a Teams workflow webhook ("Post to a channel when a webhook request is received") |
+
+A crontab entry that checks at 7am on weekdays and posts to Slack:
+
+```cron
+0 7 * * 1-5  cd /path/to/legislation-monitor && DIGEST_WEBHOOK_URL=https://hooks.slack.com/services/... npm run check-all >> .data/check-all.log 2>&1
+```
+
+A GitHub Actions workflow that does the same on GitHub's runners.  The database lives in the Actions cache between runs, which GitHub evicts after seven days without use, so treat it as a convenience rather than durable storage.
+
+```yaml
+name: Check legislation
+on:
+  schedule:
+    - cron: "0 21 * * 0-4" # 7am AEST, Monday to Friday
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache/restore@v4
+        with:
+          path: .data
+          key: legislation-db-${{ github.run_id }}
+          restore-keys: legislation-db-
+      - run: npm run check-all
+        env:
+          DIGEST_WEBHOOK_URL: ${{ secrets.DIGEST_WEBHOOK_URL }}
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .data
+          key: legislation-db-${{ github.run_id }}
+```
+
+A smoke run of `npm run check-all` in a sandbox that cannot reach the registers reported all seven seeded Acts as failed, stored nothing, posted the digest to a local test webhook, and exited with status 1.  No run against the live registers has been recorded.
+
+The app also keeps a pending-changes counter.  `GET /api/changes/count` returns the number of changes recorded since someone last acknowledged them, and `POST /api/changes/ack` resets it.
 
 ### Stack
 

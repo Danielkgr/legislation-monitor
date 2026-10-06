@@ -226,7 +226,7 @@ async function scrapeVictorian(url: string): Promise<ScraperResult> {
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     throw new ScrapeError(
-      `Could not read the Victorian register page for ${url} (${reason}).  Nothing was stored.`,
+      `Could not read the Victorian register page: ${reason}.  Nothing was stored.`,
     );
   }
   const { html, finalUrl } = page;
