@@ -1,6 +1,14 @@
-import { createTwoFilesPatch } from "diff";
+import {
+  BRIEF_SYSTEM_PROMPT,
+  buildBriefPrompt,
+  type ChangeBrief,
+  heuristicBrief,
+  parseBrief,
+} from "./brief";
 import { getSetting } from "./db";
 import type { DiffResult } from "./diff";
+
+export type { ChangeBrief } from "./brief";
 
 /**
  * Pluggable LLM integration. Talks to any OpenAI-compatible
@@ -20,20 +28,6 @@ export interface LLMSettings {
   model: string;
   temperature: number;
   maxTokens: number;
-}
-
-/**
- * A structured, stakeholder-facing explanation of a detected change.
- * `source` records whether the LLM produced it or the built-in heuristic
- * fallback did, so the UI can label provenance.
- */
-export interface ChangeBrief {
-  summary: string;
-  keyChanges: string[];
-  whoIsAffected: string;
-  whyItMatters: string;
-  significance: number; // integer 0-10
-  source: "llm" | "heuristic";
 }
 
 interface ChatMessage {
@@ -142,95 +136,6 @@ async function chatCompletion(messages: ChatMessage[]): Promise<string> {
   return content;
 }
 
-/** Compact, bounded unified diff for the model — avoids huge prompt payloads. */
-function buildDiffPayload(oldText: string, newText: string, maxChars = 12_000): string {
-  const patch = createTwoFilesPatch("previous", "current", oldText, newText);
-  const body = patch
-    .split("\n")
-    .filter(
-      (l) =>
-        !l.startsWith("Index:") &&
-        !l.startsWith("====") &&
-        !l.startsWith("--- ") &&
-        !l.startsWith("+++ "),
-    )
-    .join("\n");
-  return body.length <= maxChars ? body : `${body.slice(0, maxChars)}\n... [diff truncated]`;
-}
-
-const SYSTEM_PROMPT = [
-  "You are an expert legal-change analyst for a legislation monitoring tool.",
-  "You receive a unified diff (previous -> current) between two versions of a piece of legislation.",
-  "Explain the change for a non-lawyer stakeholder. Be precise, factual, and concise.",
-  "Respond with ONLY a JSON object (no prose, no code fences) with exactly these keys:",
-  '  "summary": string,    // 1-3 plain-English sentences on what changed and why',
-  '  "keyChanges": string[], // 2-6 short bullets, most important first',
-  '  "whoIsAffected": string, // 1-2 sentences on who is impacted',
-  '  "whyItMatters": string,  // 1-2 sentences on practical/legal significance',
-  '  "significance": number   // integer 0-10; 10 = major legal/operational impact',
-].join("\n");
-
-interface ParsedBrief {
-  summary: string;
-  keyChanges: string[];
-  whoIsAffected: string;
-  whyItMatters: string;
-  significance: number;
-}
-
-function clamp0to10(n: number): number {
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(10, Math.round(n)));
-}
-
-/** Defensively parse a JSON brief out of free model output. */
-function parseBrief(raw: string): ParsedBrief | null {
-  let text = raw.trim();
-  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) text = fence[1].trim();
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) return null;
-
-  let obj: unknown;
-  try {
-    obj = JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return null;
-  }
-  if (typeof obj !== "object" || obj === null) return null;
-
-  const o = obj as Record<string, unknown>;
-  const keyChanges = Array.isArray(o.keyChanges)
-    ? o.keyChanges.map((k) => String(k).trim()).filter(Boolean)
-    : [];
-  return {
-    summary: String(o.summary ?? "").trim(),
-    keyChanges,
-    whoIsAffected: String(o.whoIsAffected ?? "").trim(),
-    whyItMatters: String(o.whyItMatters ?? "").trim(),
-    significance: clamp0to10(Number(o.significance)),
-  };
-}
-
-function heuristicToBrief(result: DiffResult, actTitle: string): ChangeBrief {
-  const keyChanges =
-    result.changedSections.length > 0
-      ? result.changedSections.slice(0, 6)
-      : ["General amendments across the document"];
-  const affected =
-    result.affectedGroups.length > 0 ? result.affectedGroups.join(", ") : "General stakeholders";
-  const changeCount = result.addedLines + result.removedLines;
-  return {
-    summary: result.summary,
-    keyChanges,
-    whoIsAffected: `Likely affects: ${affected}.`,
-    whyItMatters: `${actTitle} was amended: ${result.addedLines} line(s) added, ${result.removedLines} line(s) removed.`,
-    significance: clamp0to10(2 + changeCount * 0.5 + result.changedSections.length * 0.5),
-    source: "heuristic",
-  };
-}
-
 /**
  * Produce a structured change brief. Uses the configured LLM when enabled and
  * reachable; otherwise (or on any failure) falls back to the deterministic
@@ -244,32 +149,22 @@ export async function generateChangeBrief(params: {
 }): Promise<ChangeBrief> {
   const { actTitle, oldText, newText, heuristic } = params;
 
-  if (!getLLMSettings().enabled) {
-    return heuristicToBrief(heuristic, actTitle);
+  const settings = getLLMSettings();
+  if (!settings.enabled) {
+    return heuristicBrief(heuristic, actTitle);
   }
 
   try {
-    const userPrompt = [
-      `Act: ${actTitle}`,
-      "",
-      "Unified diff (previous -> current):",
-      buildDiffPayload(oldText, newText),
-      "",
-      "Return the JSON object now.",
-    ].join("\n");
-
     const raw = await chatCompletion([
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
+      { role: "system", content: BRIEF_SYSTEM_PROMPT },
+      { role: "user", content: buildBriefPrompt(actTitle, oldText, newText) },
     ]);
     const parsed = parseBrief(raw);
-    if (!parsed || !parsed.summary) throw new Error("LLM returned no parseable brief");
-    return { ...parsed, source: "llm" };
+    if (!parsed) throw new Error("the model returned no parseable brief");
+    return { ...parsed, source: "llm", ...(settings.model ? { model: settings.model } : {}) };
   } catch (err) {
-    console.warn(
-      "[llm] falling back to heuristic brief:",
-      err instanceof Error ? err.message : err,
-    );
-    return heuristicToBrief(heuristic, actTitle);
+    const reason = err instanceof Error ? err.message : String(err);
+    console.warn("[llm] falling back to heuristic brief:", reason);
+    return heuristicBrief(heuristic, actTitle, `The model call failed: ${reason}`);
   }
 }

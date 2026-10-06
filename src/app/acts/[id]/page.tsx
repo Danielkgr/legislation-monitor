@@ -32,7 +32,16 @@ interface ChangeBrief {
   whoIsAffected: string;
   whyItMatters: string;
   significance: number;
-  source: "llm" | "heuristic";
+  source: "claude" | "llm" | "heuristic";
+  model?: string;
+  fallbackReason?: string;
+}
+
+/** Who wrote a brief, for its provenance label. */
+function briefLabel(brief: ChangeBrief): string {
+  if (brief.source === "claude") return "Claude brief";
+  if (brief.source === "llm") return "Model brief";
+  return "Heuristic brief";
 }
 
 interface EnrichedSectionDetail {
@@ -501,15 +510,25 @@ function ChangeCard({ change, versionMap }: { change: ChangeRecord; versionMap: 
               <SignificanceBadge value={brief.significance} />
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                  brief.source === "llm" ? "bg-accent/10 text-accent" : "bg-white/[0.04] text-faint"
+                  brief.source === "heuristic"
+                    ? "bg-white/[0.04] text-faint"
+                    : "bg-accent/10 text-accent"
                 }`}
+                title={
+                  brief.model ? `Written by ${brief.model}` : "Written by the built-in heuristic"
+                }
               >
-                {brief.source === "llm" ? "AI brief" : "Auto summary"}
+                {briefLabel(brief)}
               </span>
             </>
           )}
         </div>
       </div>
+
+      {/* Why the heuristic stood in for a configured model */}
+      {brief?.fallbackReason && (
+        <p className="text-xs text-faint mb-2">Written by the heuristic: {brief.fallbackReason}</p>
+      )}
 
       {/* Summary */}
       {change.summary && (
