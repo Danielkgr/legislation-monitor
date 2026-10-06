@@ -80,6 +80,33 @@ export function getLLMSettings(): LLMSettings {
   };
 }
 
+/** The settings the API may return: everything except the key itself. */
+export interface PublicLLMSettings {
+  enabled: boolean;
+  apiBase: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  /** True when a key is stored in settings or set in the environment. */
+  hasApiKey: boolean;
+}
+
+/**
+ * Settings for the settings API and page.  Built from an allow-list so a
+ * stored key never leaves the server.
+ */
+export function getPublicLLMSettings(): PublicLLMSettings {
+  const s = getLLMSettings();
+  return {
+    enabled: s.enabled,
+    apiBase: s.apiBase,
+    model: s.model,
+    temperature: s.temperature,
+    maxTokens: s.maxTokens,
+    hasApiKey: s.apiKey !== "",
+  };
+}
+
 async function chatCompletion(messages: ChatMessage[]): Promise<string> {
   const s = getLLMSettings();
   if (!s.apiBase) throw new Error("LLM endpoint is not configured");

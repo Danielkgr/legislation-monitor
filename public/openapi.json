@@ -399,7 +399,7 @@
     "/api/settings": {
       "get": {
         "summary": "Read LLM endpoint settings",
-        "description": "Returns the effective LLM settings (database values take precedence over environment variables).",
+        "description": "Returns the effective LLM settings (database values take precedence over environment variables). The API key is never returned; hasApiKey reports whether one is set.",
         "operationId": "getSettings",
         "tags": ["Settings"],
         "responses": {
@@ -420,7 +420,7 @@
       },
       "post": {
         "summary": "Update LLM endpoint settings",
-        "description": "Persists LLM settings to the database-backed settings store. Any field omitted is left unchanged; passing an empty string for a string field clears it, letting the environment fallback apply.",
+        "description": "Persists LLM settings to the database-backed settings store. Any field omitted is left unchanged; passing an empty string for apiBase or model clears it, letting the environment fallback apply. A blank apiKey keeps the stored key, and clearApiKey removes it. Responses report hasApiKey and never include the key.",
         "operationId": "updateSettings",
         "tags": ["Settings"],
         "requestBody": {
@@ -726,10 +726,6 @@
             "type": "string",
             "description": "Base URL of any OpenAI-compatible /chat/completions endpoint (cloud or local)"
           },
-          "apiKey": {
-            "type": "string",
-            "description": "API key, if the endpoint requires one"
-          },
           "model": {
             "type": "string"
           },
@@ -738,6 +734,10 @@
           },
           "maxTokens": {
             "type": "integer"
+          },
+          "hasApiKey": {
+            "type": "boolean",
+            "description": "Whether an API key is stored in settings or set in the environment.  The key itself is never returned."
           }
         }
       },
@@ -755,7 +755,12 @@
                 "type": "string"
               },
               "apiKey": {
-                "type": "string"
+                "type": "string",
+                "description": "New API key.  Blank or omitted keeps the stored key."
+              },
+              "clearApiKey": {
+                "type": "boolean",
+                "description": "Set to true to remove the stored API key."
               },
               "model": {
                 "type": "string"
