@@ -80,6 +80,9 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) for the dashboard.  Five Acts are seeded on the first run.
 
+> [!WARNING]
+> Legislation Monitor is a local, single-user tool.  No endpoint asks for a login, including `DELETE /api/acts/:id` and `POST /api/settings`.  `npm run dev` and `npm start` bind to 127.0.0.1, so only the same machine can reach the app.  Do not expose it on a network unless an authenticating reverse proxy sits in front of it.
+
 | Jurisdiction | Seeded Acts |
 |---|---|
 | **Commonwealth** | *Privacy Act 1988*, *Corporations Act 2001*, *Work Health and Safety Act 2011* |
@@ -92,11 +95,13 @@ Open [http://localhost:3000](http://localhost:3000) for the dashboard.  Five Act
 ### Scripts
 
 ```bash
-npm run dev       # development server on localhost:3000
-npm run build     # production build to .next/
-npm run start     # run the production build locally
-npm run lint      # ESLint
-npm test          # Vitest unit tests
+npm run dev           # development server on 127.0.0.1:3000
+npm run build         # production build to .next/
+npm run start         # run the production build on 127.0.0.1:3000
+npm run lint          # ESLint
+npm run format        # format with Biome
+npm run format:check  # fail if any file needs formatting
+npm test              # Vitest unit and route tests
 ```
 
 ### API
@@ -120,7 +125,7 @@ A full [OpenAPI 3.0](https://spec.openapis.org/oas/v3.0.3) specification ships w
 | `GET` | `/api/changes/:actId/export` | Exports an Act's changes as JSON by default, or as a Markdown report with `?format=md` |
 | `GET` | `/api/changes/count` | Returns the pending-changes counter |
 | `POST` | `/api/changes/ack` | Resets the pending-changes counter |
-| `GET`, `POST` | `/api/settings` | Reads or updates the LLM endpoint settings |
+| `GET`, `POST` | `/api/settings` | Reads or updates the LLM endpoint settings.  Responses report `hasApiKey` and never return the key.  A blank key in a `POST` keeps the stored one |
 | `GET` | `/api/openapi` | Returns the OpenAPI specification |
 
 Every endpoint returns JSON.  Errors come back as `{ "error": "message" }` with a matching HTTP status of 400, 404, 409, or 500.

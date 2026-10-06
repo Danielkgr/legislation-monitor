@@ -6,23 +6,39 @@ import Link from "next/link";
 interface LLMForm {
   enabled: boolean;
   apiBase: string;
-  apiKey: string;
   model: string;
   temperature: number;
   maxTokens: number;
 }
 
+/** What GET /api/settings returns.  The key itself never leaves the server. */
+interface LLMSettingsResponse extends LLMForm {
+  hasApiKey: boolean;
+}
+
 const EMPTY: LLMForm = {
   enabled: false,
   apiBase: "",
-  apiKey: "",
   model: "",
   temperature: 0.2,
   maxTokens: 1024,
 };
 
+function toForm(s: LLMSettingsResponse): LLMForm {
+  return {
+    enabled: s.enabled,
+    apiBase: s.apiBase,
+    model: s.model,
+    temperature: s.temperature,
+    maxTokens: s.maxTokens,
+  };
+}
+
 export default function SettingsPage() {
   const [form, setForm] = useState<LLMForm>(EMPTY);
+  // A new key typed by the user.  Blank means "keep the saved key".
+  const [newApiKey, setNewApiKey] = useState("");
+  const [hasApiKey, setHasApiKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
@@ -32,7 +48,11 @@ export default function SettingsPage() {
     fetch("/api/settings")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && !cancelled) setForm((data as { llm: LLMForm }).llm);
+        if (data && !cancelled) {
+          const llm = (data as { llm: LLMSettingsResponse }).llm;
+          setForm(toForm(llm));
+          setHasApiKey(llm.hasApiKey);
+        }
       })
       .catch((err) => console.error("Failed to load settings:", err))
       .finally(() => {
@@ -46,18 +66,24 @@ export default function SettingsPage() {
   const update = <K extends keyof LLMForm>(key: K, value: LLMForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  const save = async () => {
+  const save = async (extra: { clearApiKey?: boolean } = {}) => {
     setSaving(true);
     setStatus(null);
     try {
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ llm: form }),
+        body: JSON.stringify({ llm: { ...form, apiKey: newApiKey, ...extra } }),
       });
-      const data = (await res.json()) as { success: boolean; error?: string };
+      const data = (await res.json()) as {
+        success: boolean;
+        error?: string;
+        llm?: LLMSettingsResponse;
+      };
       if (res.ok && data.success) {
-        setStatus({ ok: true, text: "Settings saved." });
+        if (data.llm) setHasApiKey(data.llm.hasApiKey);
+        setNewApiKey("");
+        setStatus({ ok: true, text: extra.clearApiKey ? "Saved key removed." : "Settings saved." });
       } else {
         setStatus({ ok: false, text: data.error || "Failed to save settings." });
       }
@@ -147,12 +173,20 @@ export default function SettingsPage() {
               />
             </Field>
 
-            <Field label="API key" hint="Optional for local servers">
+            <Field
+              label="API key"
+              hint={
+                hasApiKey
+                  ? "A key is saved. Leave this blank to keep it, or type a new key to replace it."
+                  : "Optional for local servers"
+              }
+            >
               <input
                 type="password"
-                value={form.apiKey}
-                onChange={(e) => update("apiKey", e.target.value)}
-                placeholder="sk-…"
+                value={newApiKey}
+                onChange={(e) => setNewApiKey(e.target.value)}
+                autoComplete="off"
+                placeholder={hasApiKey ? "Saved key on file" : "sk-..."}
                 className="w-full bg-background/60 border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-faint focus:outline-none focus:border-accent/60 focus:ring-1 focus:ring-accent/30 font-mono-custom"
               />
             </Field>
@@ -194,7 +228,7 @@ export default function SettingsPage() {
 
           <div className="flex items-center gap-3 mt-5">
             <button
-              onClick={save}
+              onClick={() => save()}
               disabled={saving || loading}
               className="bg-accent hover:bg-accent-light disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-5 py-2 rounded-lg text-sm transition-all hover:shadow-[0_0_22px_-4px_rgba(124,92,252,0.8)] flex items-center gap-1.5"
             >
@@ -217,6 +251,16 @@ export default function SettingsPage() {
               )}
               {saving ? "Saving…" : "Save settings"}
             </button>
+            {hasApiKey && (
+              <button
+                type="button"
+                onClick={() => save({ clearApiKey: true })}
+                disabled={saving || loading}
+                className="text-xs text-faint hover:text-danger transition-colors disabled:opacity-50"
+              >
+                Remove saved key
+              </button>
+            )}
             {status && (
               <span className={`text-xs ${status.ok ? "text-success" : "text-danger"}`}>
                 {status.text}
