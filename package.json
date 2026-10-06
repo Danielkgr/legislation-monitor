@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1",
     "check-all": "tsx scripts/check-all.ts",
+    "demo:seed": "tsx scripts/demo-seed.ts",
     "lint": "eslint",
     "format": "biome format --write .",
     "format:check": "biome format .",
