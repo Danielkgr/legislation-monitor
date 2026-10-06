@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import * as cheerio from "cheerio";
 import {
+  deserializeTOC,
+  findLineIndexByHeading,
+  identifyAffectedSectionsEnriched,
   parseTOC,
   serializeTOC,
-  deserializeTOC,
-  identifyAffectedSections,
-  identifyAffectedSectionsEnriched,
 } from "./structure";
 
 /* ── parseTOC: federal-style markup ──────────────────────────────────── */
@@ -79,86 +79,91 @@ describe("heading hierarchy", () => {
   });
 });
 
-/* ── identifyAffectedSections ────────────────────────────────────────── */
+/* ── findLineIndexByHeading ─────────────────────────────────────────── */
 
-describe("identifyAffectedSections", () => {
-  it("flags sections whose surrounding lines changed", () => {
-    const before = [
-      "Part 1 - Preliminary",
-      "Section 5 - Definitions",
-      "The definitions in this section are:",
-      '"person" includes a body corporate.',
-    ];
-    const after = [
-      "Part 1 - Preliminary",
-      "Section 5 - Definitions",
-      "The definitions in this section are:",
-      '"person" includes an individual or body corporate.',
-      '"corporation" means a registered company.', // new line, won't match anything in before
-    ];
-
-    // Build a minimal TOC with Section 5 present
-    const tocHtml = `
-      <html><body>
-        <h2>Part 1 - Preliminary</h2>
-        <h4>Section 5 - Definitions</h4>
-      </body></html>
-    `;
-    const toc = parseTOC(cheerio.load(tocHtml));
-
-    const changes = identifyAffectedSections(toc, before, after);
-    expect(changes.some((c) => c.sectionTitle.includes("Section 5"))).toBe(true);
+describe("findLineIndexByHeading", () => {
+  it("does not match a line just because it shares a word or digit with the heading", () => {
+    const lines = ["Schedule 1 amendments", "Item 1 repeals section 3", "Part 1 - Preliminary"];
+    expect(findLineIndexByHeading(lines, "Part 1 - Preliminary")).toBe(2);
   });
 
-  it("returns empty array when no lines changed", () => {
-    const same = ["Part 1", "Section 5 - Definitions", "Text here."];
-    const tocHtml = "<html><body><h2>Part 1</h2><h4>Section 5</h4></body></html>";
-    const changes = identifyAffectedSections(parseTOC(cheerio.load(tocHtml)), same, same);
-    expect(changes).toHaveLength(0);
+  it("does not match Part 10 when looking for Part 1", () => {
+    const lines = ["Part 10 - Miscellaneous", "Part 1 Preliminary matters"];
+    expect(findLineIndexByHeading(lines, "Part 1 - Preliminary")).toBe(1);
+  });
+
+  it("treats en and em dashes as hyphens and ignores case and spacing", () => {
+    const lines = ["Contents", "PART 1 -  PRELIMINARY"];
+    expect(findLineIndexByHeading(lines, "Part 1 \u2013 Preliminary")).toBe(1);
+  });
+
+  it("returns -1 when the heading is absent", () => {
+    expect(
+      findLineIndexByHeading(["Part 2 - Offences", "Section 10"], "Part 1 - Preliminary"),
+    ).toBe(-1);
   });
 });
 
 /* ── identifyAffectedSectionsEnriched ────────────────────────────────── */
 
 describe("identifyAffectedSectionsEnriched", () => {
-  it("returns enriched records with section numbers and parent paths", () => {
-    const before = [
-      "Part 1 - Preliminary",
-      "Section 5 - Definitions",
-      "The definitions in this section are:",
-      '"person" includes a body corporate.',
-    ];
-    const after = [
-      "Part 1 - Preliminary",
-      "Section 5 - Definitions",
-      "The definitions in this section are:",
-      '"person" includes an individual or body corporate.',
-      '"corporation" means a registered company.',
-    ];
+  const tocHtml = `
+    <html><body>
+      <h2>Part 1 - Preliminary</h2>
+      <h4>Section 5 - Definitions</h4>
+      <h4>Section 6 - Application</h4>
+    </body></html>
+  `;
+  const before = [
+    "Part 1 - Preliminary",
+    "Section 5 - Definitions",
+    '"person" includes a body corporate.',
+    "Section 6 - Application",
+    "This Act applies in every State.",
+  ];
+  const after = [
+    "Part 1 - Preliminary",
+    "Section 5 - Definitions",
+    '"person" includes an individual or body corporate.',
+    "Section 6 - Application",
+    "This Act applies in every State.",
+  ];
 
-    const tocHtml = `
-      <html><body>
-        <h2>Part 1 - Preliminary</h2>
-        <h4>Section 5 - Definitions</h4>
-      </body></html>
-    `;
-    const toc = parseTOC(cheerio.load(tocHtml));
+  it("flags an edited section as modified, with its parent path, and leaves others alone", () => {
+    const changes = identifyAffectedSectionsEnriched(
+      parseTOC(cheerio.load(tocHtml)),
+      before,
+      after,
+    );
 
-    const changes = identifyAffectedSectionsEnriched(toc, before, after);
-
-    // Should have detected a change to section 5
-    expect(changes.length).toBeGreaterThan(0);
-
-    // Verify enriched fields are present
-    const sectionChange = changes.find((c) => c.sectionNumber === "5");
-    if (sectionChange) {
-      expect(sectionChange.sectionTitle).toBe("Section 5 - Definitions");
-      expect(typeof sectionChange.parentPath).toBe("string");
-      expect(["added", "removed", "modified"]).toContain(sectionChange.changeType);
-    }
+    expect(changes).toContainEqual({
+      sectionNumber: "5",
+      sectionTitle: "Section 5 - Definitions",
+      changeType: "modified",
+      parentPath: "Part 1 - Preliminary > Section 5 - Definitions",
+      context: "Section 5 - Definitions",
+    });
+    expect(changes.some((c) => c.sectionNumber === "6")).toBe(false);
   });
 
-  it("returns empty array when no TOC changes detected", () => {
+  it("works on a table of contents loaded back from storage", () => {
+    const stored = serializeTOC(parseTOC(cheerio.load(tocHtml)));
+    const changes = identifyAffectedSectionsEnriched(deserializeTOC(stored), before, after);
+    expect(changes.find((c) => c.sectionNumber === "5")?.changeType).toBe("modified");
+  });
+
+  it("flags a heading found only in the new text as added", () => {
+    const html =
+      "<html><body><h2>Part 1 - Preliminary</h2><h4>Section 7 - Review</h4></body></html>";
+    const changes = identifyAffectedSectionsEnriched(
+      parseTOC(cheerio.load(html)),
+      ["Part 1 - Preliminary", "Text."],
+      ["Part 1 - Preliminary", "Text.", "Section 7 - Review", "The Minister must review this Act."],
+    );
+    expect(changes.find((c) => c.sectionNumber === "7")?.changeType).toBe("added");
+  });
+
+  it("returns an empty array when no lines changed", () => {
     const same = ["Part 1 - Preliminary", "Section 5 - Definitions"];
     const tocHtml = "<html><body><h2>Part 1</h2><h4>Section 5</h4></body></html>";
     const changes = identifyAffectedSectionsEnriched(parseTOC(cheerio.load(tocHtml)), same, same);
@@ -181,8 +186,10 @@ describe("TOC serialization", () => {
 
     expect(() => JSON.parse(json)).not.toThrow(); // valid JSON at least
 
-    // Verify sections still accessible after round-trip
+    // The flat list, the children and the section index survive the round trip.
     const restored = deserializeTOC(json);
     expect(restored.all).toHaveLength(toc.all.length);
+    expect(restored.root[0].children[0]).toBe(restored.all[1]);
+    expect(restored.sections.get("1")?.title).toBe("Section 1 - Title");
   });
 });

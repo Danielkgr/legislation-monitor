@@ -11,6 +11,7 @@
  */
 
 import * as cheerio from "cheerio";
+import { diffArrays } from "diff";
 
 /* ── Types ─────────────────────────────────────────────────────────────── */
 
@@ -178,21 +179,17 @@ export function parseTOC($: cheerio.CheerioAPI): TableOfContents {
   }
 
   // Build hierarchical tree from flat list
-  const root = buildTree(candidates);
+  return indexTOC(buildTree(candidates));
+}
 
-  // Flatten for easy lookup
+/** Flatten a tree for lookup and index its sections by number. */
+function indexTOC(root: TocNode[]): TableOfContents {
   const all: TocNode[] = [];
   flatten(root, all);
-
-  // Index sections by their number
   const sections = new Map<string, TocNode>();
   for (const node of all) {
-    if (node.type === "section") {
-      const num = node.key.replace(/^s/, "");
-      sections.set(num, node);
-    }
+    if (node.type === "section") sections.set(node.key.replace(/^s/, ""), node);
   }
-
   return { root, all, sections };
 }
 
@@ -249,27 +246,23 @@ function flatten(nodes: TocNode[], out: TocNode[]): void {
   }
 }
 
-/** Info about a section whose content changed */
-export interface SectionChange {
-  sectionTitle: string;
-  changeType: "added" | "removed" | "modified";
-  context: string;
-}
-
 /** Enriched section change with TOC metadata for structured storage */
 export interface EnrichedSectionChange {
   sectionNumber: string | null;
   sectionTitle: string;
   changeType: "added" | "removed" | "modified";
-  /** e.g. "Part 1 > Division 2" */
+  /** Titles from the top-level ancestor down to the node, e.g. "Part 1 > Section 5" */
   parentPath: string;
   /** Raw heading text that was matched */
   context: string;
 }
 
 /**
- * Given the TOC and changed line arrays, return enriched section-change records
- * with section numbers and parent breadcrumbs suitable for structured storage.
+ * Given the TOC and the line arrays of two versions, return the TOC nodes the
+ * change touched.  A heading found only in the new text is "added", only in
+ * the old text "removed".  A heading found in both is "modified" when a
+ * changed line falls inside its span, which runs to the next heading at the
+ * same or a higher level, so a Part's span includes its sections.
  */
 export function identifyAffectedSectionsEnriched(
   toc: TableOfContents,
@@ -277,204 +270,147 @@ export function identifyAffectedSectionsEnriched(
   linesAfter: string[],
 ): EnrichedSectionChange[] {
   const affected = new Map<string, EnrichedSectionChange>();
-
-  // Compute which line indices actually changed
   const { added, removed } = computeChanges(linesBefore, linesAfter);
-  const allChanged = new Set<number>([...added, ...removed]);
 
-  // Track which TOC nodes are relevant by checking for changed lines in proximity
-  for (const tocNode of toc.all) {
-    const closestBefore = findLineIndexByHeading(linesBefore, tocNode.title);
-    const closestAfter = findLineIndexByHeading(linesAfter, tocNode.title);
+  // Where each heading sits in each version (-1 when absent).
+  const before = toc.all.map((n) => findLineIndexByHeading(linesBefore, n.title));
+  const after = toc.all.map((n) => findLineIndexByHeading(linesAfter, n.title));
 
-    // Determine if the section itself was added/removed by checking presence
-    let isAdded = false;
-    let isRemoved = false;
-    let isModified = false;
-
-    if (closestAfter >= 0 && closestBefore < 0) {
-      // Heading exists only in after → new section entirely
-      isAdded = true;
-    } else if (closestBefore >= 0 && closestAfter < 0) {
-      // Heading existed only in before → removed section
-      isRemoved = true;
-    } else if (closestBefore >= 0 && closestAfter >= 0) {
-      // Heading exists in both — flag as modified only if changed lines are nearby
-      const proximityWindow = Math.min(50, linesAfter.length);
-      const idx = closestAfter;
-      for (
-        let j = Math.max(0, idx - 3);
-        j <= Math.min(linesAfter.length - 1, idx + proximityWindow);
-        j++
-      ) {
-        if (allChanged.has(j)) {
-          isModified = true;
-          break;
-        }
-      }
+  toc.all.forEach((node, i) => {
+    let changeType: EnrichedSectionChange["changeType"] | null = null;
+    if (after[i] >= 0 && before[i] < 0) {
+      changeType = "added";
+    } else if (before[i] >= 0 && after[i] < 0) {
+      changeType = "removed";
+    } else if (before[i] >= 0 && after[i] >= 0) {
+      const endAfter = spanEnd(toc.all, after, i, linesAfter.length);
+      const endBefore = spanEnd(toc.all, before, i, linesBefore.length);
+      const touched =
+        added.some((line) => line >= after[i] && line < endAfter) ||
+        removed.some((line) => line >= before[i] && line < endBefore);
+      if (touched) changeType = "modified";
     }
+    if (!changeType) return;
 
-    if (isAdded || isRemoved || isModified) {
-      // Get parent path from TOC hierarchy
-      const parentPath = getParentPath(toc, tocNode);
-      const changeType = isAdded
-        ? ("added" as const)
-        : isRemoved
-          ? ("removed" as const)
-          : ("modified" as const);
-
-      // Key by section number to avoid duplicates
-      const num = tocNode.type === "section" ? tocNode.key.replace(/^s/, "") : null;
-      const key = num || tocNode.key;
-
-      if (!affected.has(key)) {
-        affected.set(key, {
-          sectionNumber: num,
-          sectionTitle: tocNode.title,
-          changeType,
-          parentPath,
-          context: tocNode.title,
-        });
-      }
+    // Key by section number to avoid duplicates
+    const num = node.type === "section" ? node.key.replace(/^s/, "") : null;
+    const key = num ?? node.key;
+    if (!affected.has(key)) {
+      affected.set(key, {
+        sectionNumber: num,
+        sectionTitle: node.title,
+        changeType,
+        parentPath: getParentPath(toc, node),
+        context: node.title,
+      });
     }
-  }
+  });
 
   return Array.from(affected.values());
 }
 
-function findLineIndexByHeading(lines: string[], heading: string): number {
-  const keyWords = heading.split(/\s+/).slice(0, 3); // First 3 words as search key
-  for (let i = 0; i < lines.length; i++) {
-    const lineNorm = lines[i].replace(/\s+/g, " ").trim().toLowerCase();
-    if (keyWords.some((w) => lineNorm.includes(w.toLowerCase()))) return i;
-  }
-  return -1;
+/**
+ * The line where a node's span ends: the next heading at the same or a
+ * higher level, or the end of the text.
+ */
+function spanEnd(nodes: TocNode[], positions: number[], index: number, length: number): number {
+  const start = positions[index];
+  let end = length;
+  nodes.forEach((other, k) => {
+    const p = positions[k];
+    if (p > start && p < end && other.level <= nodes[index].level) end = p;
+  });
+  return end;
 }
 
-function getParentPath(toc: TableOfContents, node: TocNode): string {
-  // Walk up the hierarchy to build parent path using recursive descent
-  function findParent(path: string[], current: TocNode, candidate: TocNode): string[] {
-    for (let i = 0; i < candidate.children.length; i++) {
-      const child = candidate.children[i];
-      if (child === current) {
-        return [...path, candidate.title];
-      }
-      const result = findParent([...path, candidate.title], current, child);
-      if (result.length > 0) return result;
-    }
-    return [];
-  }
-
-  // Try to find parent from root level
-  for (const root of toc.root) {
-    if (root === node) return root.title; // Root itself is top-level
-    const ancestors = findParent([], root, node);
-    if (ancestors.length > 0) return [...ancestors, node.title].join(" > ");
-  }
-
-  return node.title;
+/** Lower-case, collapse whitespace, drop soft hyphens and treat every dash as a hyphen. */
+function normaliseHeading(text: string): string {
+  return text
+    .replace(/\u00ad/g, "")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
-/* ── Section-precise change analysis ─────────────────────────────────── */
+const DESIGNATION_RE = /^(part|chapter|division|subdivision|section|schedule)\s+[0-9]+[a-z]*/;
 
 /**
- * Given the TOC and a set of changed line ranges (from diff), return which
- * sections/part titles are affected. Returns structured info suitable for
- * embedding in a brief.
+ * Index of the line that holds a heading, or -1.  A line matches when it is
+ * the same heading after normalisation, or when it starts with the heading's
+ * designation (such as "Part 1" or "Section 5A") followed by a word
+ * boundary.  So "Part 1" never matches "Part 10", or a line that merely
+ * contains the digit 1.
  */
-export function identifyAffectedSections(
-  toc: TableOfContents,
-  linesBefore: string[],
-  linesAfter: string[],
-): SectionChange[] {
-  const affected: SectionChange[] = [];
-  const { added, removed } = computeChanges(linesBefore, linesAfter);
+export function findLineIndexByHeading(lines: string[], heading: string): number {
+  const target = normaliseHeading(heading);
+  if (!target) return -1;
+  const normalised = lines.map(normaliseHeading);
 
-  for (const line of added) {
-    const ctx = getHeadingContext(toc, linesAfter, line);
-    if (ctx) affected.push({ sectionTitle: ctx, changeType: "added", context: ctx });
-  }
-  for (const line of removed) {
-    const ctx = getHeadingContext(toc, linesBefore, line);
-    if (ctx) affected.push({ sectionTitle: ctx, changeType: "removed", context: ctx });
-  }
+  const exact = normalised.indexOf(target);
+  if (exact >= 0) return exact;
 
-  return affected;
+  const designation = target.match(DESIGNATION_RE)?.[0];
+  if (!designation) return -1;
+  return normalised.findIndex(
+    (line) => line.startsWith(designation) && !/[0-9a-z]/.test(line.charAt(designation.length)),
+  );
 }
 
-function computeChanges(before: string[], after: string[]): { added: number[]; removed: number[] } {
-  const added: number[] = [];
-  const removed: number[] = [];
-
-  // Simple line-by-line comparison with fuzzy matching
-  const used = new Set<number>();
-  for (let i = 0; i < after.length; i++) {
-    const found = findClosestLine(before, after[i], used);
-    if (found >= 0) {
-      used.add(found);
-    } else {
-      added.push(i);
-    }
-  }
-  for (let j = 0; j < before.length; j++) {
-    if (!used.has(j)) removed.push(j);
-  }
-
-  return { added, removed };
+/** Titles from the top-level ancestor down to the node, joined with " > ". */
+function getParentPath(toc: TableOfContents, node: TocNode): string {
+  const trail = findTrail(toc.root, node) ?? [node];
+  return trail.map((n) => n.title).join(" > ");
 }
 
-function findClosestLine(lines: string[], needle: string, used: Set<number>): number {
-  const needleNorm = needle.replace(/\s+/g, " ").trim().toLowerCase();
-  let bestIdx = -1;
-  let bestSim = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    if (used.has(i)) continue;
-    const lineNorm = lines[i].replace(/\s+/g, " ").trim().toLowerCase();
-    // Simple containment check first
-    if (needleNorm.includes(lineNorm) || lineNorm.includes(needleNorm)) {
-      return i;
-    }
-    // Word overlap score
-    const a = new Set(needleNorm.split(" "));
-    const b = new Set(lineNorm.split(" "));
-    let score = 0;
-    for (const w of a) if (b.has(w)) score++;
-    if (score > bestSim) {
-      bestSim = score;
-      bestIdx = i;
-    }
-  }
-
-  return bestIdx;
-}
-
-function getHeadingContext(toc: TableOfContents, lines: string[], lineIdx: number): string | null {
-  // Look backward from the changed line to find the nearest heading
-  for (let i = Math.min(lineIdx, lines.length - 1); i >= Math.max(0, lineIdx - 3); i--) {
-    const l = lines[i].trim();
-    if (PART_RE.test(l) || CHAPTER_RE.test(l) || DIVISION_RE.test(l) || SECTION_RE.test(l))
-      return l;
+function findTrail(nodes: TocNode[], target: TocNode): TocNode[] | null {
+  for (const n of nodes) {
+    if (n === target) return [n];
+    const below = findTrail(n.children, target);
+    if (below) return [n, ...below];
   }
   return null;
 }
 
-/* ── Serialize for DB storage ─────────────────────────────────────────── */
-
-/** Convert a TOC to JSON-safe object (strips the Map). */
-export function serializeTOC(toc: TableOfContents): string {
-  const plain = {
-    root: toc.root,
-    all: toc.all.map((n) => ({ ...n, children: n.children.length ? n.children : undefined })),
-  };
-  return JSON.stringify(plain);
+/**
+ * Indices of added lines (in the new text) and removed lines (in the old
+ * text), from a line diff.  A line that was edited counts as removed in the
+ * old text and added in the new one.
+ */
+function computeChanges(before: string[], after: string[]): { added: number[]; removed: number[] } {
+  const added: number[] = [];
+  const removed: number[] = [];
+  let b = 0;
+  let a = 0;
+  for (const part of diffArrays(before, after)) {
+    const n = part.value.length;
+    if (part.added) {
+      for (let k = 0; k < n; k++) added.push(a++);
+    } else if (part.removed) {
+      for (let k = 0; k < n; k++) removed.push(b++);
+    } else {
+      a += n;
+      b += n;
+    }
+  }
+  return { added, removed };
 }
 
-/** Deserialize a stored TOC JSON back to TableOfContents (rebuilds Map). */
+/* ── Serialize for DB storage ─────────────────────────────────────────── */
+
+/** Convert a TOC to JSON.  The tree holds every node, so only the root is stored. */
+export function serializeTOC(toc: TableOfContents): string {
+  return JSON.stringify({ root: toc.root });
+}
+
+/**
+ * Rebuild a TableOfContents from stored JSON.  `all` and `sections` are
+ * derived from the tree again, so their nodes are the tree's own nodes with
+ * their children.  Older rows that also stored `all` load the same way.
+ */
 export function deserializeTOC(jsonStr: string): TableOfContents {
-  const plain = JSON.parse(jsonStr) as { root: TocNode[]; all: Partial<TocNode>[] };
-  // Reconstruct children arrays from the 'root' which should be complete
-  return { root: plain.root, all: plain.all as TocNode[], sections: new Map() };
+  const { root } = JSON.parse(jsonStr) as { root: TocNode[] };
+  return indexTOC(root);
 }
 
 /* ── Raw HTML → serialized TOC ─────────────────────────────────────── */
