@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 import { createHash } from "crypto";
 
-interface ScraperResult {
+export interface ScraperResult {
   title: string;
   plainText: string;
   versionLabel: string | null;

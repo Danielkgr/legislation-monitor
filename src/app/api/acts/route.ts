@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { type Act, type ActSummary, connectDB } from "@/lib/db";
-import { scrapeAct } from "@/lib/scrapers";
+import { checkAct } from "@/lib/check";
 
 export async function GET() {
   const db = connectDB();
@@ -60,20 +60,10 @@ export async function POST(req: NextRequest) {
       .get(result.lastInsertRowid);
     if (!act) throw new Error("Inserted Act could not be read back");
 
-    // Immediately fetch the first version
+    // Capture the baseline version straight away.  A failed scrape still
+    // leaves the Act watched; the next check stores the baseline.
     try {
-      const scrapeResult = await scrapeAct(url, jurisdiction as "federal" | "vic");
-      db.prepare(
-        `INSERT INTO versions (act_id, version_label, content_hash, plain_text, source_url) VALUES (?, ?, ?, ?, ?)`,
-      ).run(
-        act.id,
-        scrapeResult.versionLabel,
-        scrapeResult.contentHash,
-        scrapeResult.plainText,
-        url,
-      );
-
-      db.prepare("UPDATE acts SET updated_at = datetime('now') WHERE id = ?").run(act.id);
+      await checkAct(act.id);
     } catch (scrapeErr) {
       console.warn(`Initial scrape failed for ${title}:`, scrapeErr);
     }
