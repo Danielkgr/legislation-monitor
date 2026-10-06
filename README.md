@@ -19,7 +19,7 @@
 A local web app and REST API that watches Acts of Parliament for amendments, repeals, and insertions.  It scrapes the Federal Register of Legislation and the Victorian legislation site, hashes the text it extracts, and flags any difference from the last stored version.
 
 > [!IMPORTANT]
-> It shows what text changed, not what the change means, so it is not a legal research or advice tool.  It covers Commonwealth and Victorian legislation only.  Everything lives in a local SQLite file, with no accounts and no sync.  It does not check on a schedule by itself.  `npm run check-all`, run from cron or a scheduled workflow, checks every Act and can post a digest to Slack or Teams (see [Scheduled checks and alerts](#scheduled-checks-and-alerts)).
+> It shows what text changed and drafts a plain-English brief of each change.  The brief is a starting point for a reader, not legal advice, and the app is not a legal research tool.  It covers Commonwealth and Victorian legislation only.  Everything lives in a local SQLite file, with no accounts and no sync.  It does not check on a schedule by itself.  `npm run check-all`, run from cron or a scheduled workflow, checks every Act and can post a digest to Slack or Teams (see [Scheduled checks and alerts](#scheduled-checks-and-alerts)).
 
 It is a working prototype.  The scrapers follow each register's URL scheme and markup, and will need maintenance when either register changes.  The tests run against synthetic HTML fixtures, not the live registers.
 
@@ -84,9 +84,9 @@ flowchart TD
 
 | Feature | What happens |
 |---|---|
-| **Act tracking** | Adding an Act of Parliament, Commonwealth or Victorian, stores a baseline snapshot in SQLite straight away. |
+| **Act tracking** | Adding an Act of Parliament, Commonwealth or Victorian, stores a baseline snapshot in SQLite straight away when the register responds, or on the next check when it does not. |
 | **Change detection** | A check (the **Check** button, `POST /api/acts/:id/check`, or `npm run check-all` for every Act) fetches the Act's HTML again, hashes the extracted text, and flags anything that differs from the last stored version. |
-| **Side-by-side diffs** | The diff viewer marks inserted, deleted, and modified sections. |
+| **Side-by-side diffs** | The diff viewer shows two versions side by side and marks added and removed lines.  The API also returns the Parts and sections each change touched, as `section_details`. |
 | **Change briefs** | Each detected change gets a brief with a summary, the key changes, who is affected, why it matters, and a significance score from 0 to 10.  Claude writes it when an Anthropic API key is set, or any OpenAI-compatible endpoint, such as a local model, when one is configured.  Otherwise a deterministic heuristic writes it.  Every brief records who wrote it, and a heuristic brief written because a model call failed says why. |
 | **Dashboard** | One page shows how many Acts are being watched, the split by jurisdiction, and the number of new changes in the last seven days. |
 | **REST API** | Every feature has an endpoint, such as `/api/acts` and `/api/changes/:actId`, for alerts or other tools to call. |
@@ -107,12 +107,12 @@ Both scrapers retry network errors, timeouts, HTTP 429 and 5xx responses twice, 
 
 ### Database
 
-On first launch the app creates a SQLite database at `.data/legislation.db`, in WAL mode so reads stay safe while a scrape is running.
+On first launch the app creates a SQLite database at `.data/legislation.db`, or at `LEGISLATION_DB_PATH` when that is set, in WAL mode so reads stay safe while a scrape is running.
 
 | Table | Purpose |
 |---|---|
 | `acts` | Metadata for each watched Act, such as title, URL, and jurisdiction |
-| `versions` | A snapshot of an Act's text at each check, with its content hash |
+| `versions` | A snapshot of an Act's text each time a check finds new text, with its content hash, table of contents and compilation details |
 | `changes` | Each detected difference between versions, including its change brief |
 | `settings` | Key-value store for runtime settings, such as the LLM endpoint and the pending-changes counter |
 
@@ -181,7 +181,7 @@ A full [OpenAPI 3.0](https://spec.openapis.org/oas/v3.0.3) specification ships w
 | `GET`, `POST` | `/api/settings` | Reads or updates the LLM endpoint settings.  Responses report `hasApiKey` and never return the key.  A blank key in a `POST` keeps the stored one |
 | `GET` | `/api/openapi` | Returns the OpenAPI specification |
 
-Every endpoint returns JSON.  Errors come back as `{ "error": "message" }` with a matching HTTP status of 400, 404, 409, or 500.
+Every endpoint returns JSON, except the Markdown export.  Errors come back as `{ "error": "message" }` with a matching HTTP status of 400, 404, 409, or 500.
 
 <details>
 <summary><strong>Add an Act</strong> (<code>POST /api/acts</code>)</summary>
@@ -233,18 +233,29 @@ Every endpoint returns JSON.  Errors come back as `{ "error": "message" }` with 
 <summary><strong>List changes</strong> (<code>GET /api/changes/:actId</code>)</summary>
 
 ```jsonc
-// Response 200, an array of changes
+// Response 200, an array of changes.  Values from the demo database, so the Act is fictional.
 [
   {
-    "id": 5,
+    "id": 1,
     "act_id": 1,
-    "detected_at": "2026-08-14T09:30:00Z",
-    "summary": "The Privacy Act 1988 has been amended (3 lines added, 1 line removed)",
-    "sections_changed": ["Added: \"Section 13G\""],
-    "affected_groups": ["Individuals & Data Subjects"],
-    "change_count": 4,
-    "from_label": null,
-    "to_label": "2026-08-14"
+    "act_title": "Example Act 2026 (demo fixture)",
+    "detected_at": "2026-10-06 10:17:00",
+    "from_label": "Compilation No. 1",
+    "to_label": "Compilation No. 2",
+    "summary": "The Example Act 2026 (demo fixture) has been amended (7 lines added, 4 lines removed) ...",
+    "sections_changed": ["Section 2", "Removed: \"widget means a small device sold to consumers.\"", "..."],
+    "affected_groups": ["General Public"],
+    "change_count": 11,
+    "brief": { "summary": "...", "keyChanges": ["..."], "significance": 10, "source": "heuristic" },
+    "section_details": [
+      {
+        "sectionNumber": "5",
+        "sectionTitle": "Section 5 - Safety notices",
+        "changeType": "modified",
+        "parentPath": "Part 2 - Widget safety > Section 5 - Safety notices",
+        "context": "Section 5 - Safety notices"
+      }
+    ]
   }
 ]
 ```
@@ -283,7 +294,7 @@ To use the spec in another tool, import `https://raw.githubusercontent.com/Danie
 
 ### Configuration
 
-Framework settings, such as rewrites, redirects, and environment variables, live in `next.config.ts`.  The scraper's User-Agent is set inline in `src/lib/scrapers.ts`.  Change it to your own URL if you run a copy.
+Environment variables are listed in `.env.example`.  Copy it to `.env.local`, which both the app and `npm run check-all` read.  Values saved on the Settings page take precedence over the environment.  Framework settings, such as rewrites and redirects, live in `next.config.ts`.  The scraper's User-Agent is set inline in `src/lib/scrapers.ts`.  Change it to your own URL if you run a copy.
 
 ```typescript
 // src/lib/scrapers.ts
@@ -313,7 +324,7 @@ ANTHROPIC_API_KEY=sk-ant-... LLM_PROVIDER=anthropic npm run dev
 
 ### Adding a jurisdiction
 
-1. Add the new jurisdiction identifier to the `jurisdiction` type in `src/lib/db.ts`.
+1. Add the new jurisdiction identifier to the `Jurisdiction` type in `src/lib/registers.ts`, and to the `jurisdiction` type and the `CHECK` constraint in `src/lib/db.ts`.
 2. Write a `scrapeNewJurisdiction()` function in `src/lib/scrapers.ts`, following the federal and Victorian patterns.
 3. Add URL normalisation for the new register to `src/lib/registers.ts`, and any version metadata patterns to `src/lib/scrapers.ts`.
 
@@ -400,9 +411,10 @@ legislation-monitor/
       globals.css           Tailwind layer styles
       layout.tsx            Root layout (fonts, metadata)
       page.tsx              Dashboard
-      settings/             LLM endpoint settings page
+      settings/             Brief provider settings page
     components/             ActCard, AddActForm, CheckButton, DiffViewer
     lib/
+      brief.ts              Brief prompt, JSON schema, validation and heuristic fallback
       catalogue.ts          Verified Acts used for seeding and quick-add presets
       changes.ts            Change history query
       check.ts              Check pipeline: fetch, hash, store, diff, map, brief
@@ -410,7 +422,6 @@ legislation-monitor/
       demo.ts               Fictional demo Acts for screenshots and walkthroughs
       diff.ts               Text-diff engine
       digest.ts             Check every Act and build the digest
-      brief.ts              Brief prompt, JSON schema, validation and heuristic fallback
       llm.ts                Provider switch and the OpenAI-compatible endpoint
       llm-anthropic.ts      Claude briefs through the Anthropic SDK
       registers.ts          Register URL normalisation to the latest version
