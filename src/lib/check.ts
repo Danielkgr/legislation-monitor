@@ -81,7 +81,7 @@ export async function checkAct(
     );
 
     if (latest?.plain_text && scraped.plainText !== latest.plain_text) {
-      change = await recordChange(act, latest, versionId, scraped.plainText);
+      change = await recordChange(act, latest, versionId, scraped.plainText, structure);
     }
 
     db.prepare("UPDATE acts SET updated_at = datetime('now') WHERE id = ?").run(act.id);
@@ -106,19 +106,26 @@ async function recordChange(
   previous: Version,
   versionId: number,
   newText: string,
+  newStructure: string | null,
 ): Promise<RecordedChange> {
   const oldText = previous.plain_text ?? "";
   const diffResult = analyzeChanges(oldText, newText, act.title);
 
-  // Map the change to sections using the previous version's table of contents.
-  let sectionDetails: EnrichedSectionChange[] = [];
-  if (previous.structure) {
+  // Map the change to sections with both versions' tables of contents: the
+  // old one finds removed and edited sections, the new one finds added ones.
+  const sectionDetails = new Map<string, EnrichedSectionChange>();
+  for (const structure of [previous.structure, newStructure]) {
+    if (!structure) continue;
     try {
-      sectionDetails = identifyAffectedSectionsEnriched(
-        deserializeTOC(previous.structure),
+      const details = identifyAffectedSectionsEnriched(
+        deserializeTOC(structure),
         oldText.split("\n"),
         newText.split("\n"),
       );
+      for (const d of details) {
+        const key = `${d.sectionNumber ?? ""}|${d.sectionTitle}`;
+        if (!sectionDetails.has(key)) sectionDetails.set(key, d);
+      }
     } catch (err) {
       console.warn("Failed to map the change to sections:", err);
     }
@@ -151,7 +158,7 @@ async function recordChange(
         JSON.stringify(diffResult.affectedGroups),
         changeCount,
         JSON.stringify(brief),
-        JSON.stringify(sectionDetails),
+        JSON.stringify([...sectionDetails.values()]),
       ).lastInsertRowid,
   );
   incrementPendingChanges();
@@ -163,6 +170,6 @@ async function recordChange(
     affected_groups: diffResult.affectedGroups,
     change_count: changeCount,
     brief,
-    section_details: sectionDetails,
+    section_details: [...sectionDetails.values()],
   };
 }
