@@ -96,6 +96,10 @@ function initSchema() {
     db!.exec("ALTER TABLE versions ADD COLUMN structure TEXT");
   }
 
+  // content_diffs held a copy of the first 500 lines of each side of a change.
+  // Nothing read it, and versions.plain_text already holds the full text.
+  db!.exec("DROP TABLE IF EXISTS content_diffs");
+
   // Add `section_details` column for storing TOC-enriched section changes.
   const changesCols2 = db!.prepare("PRAGMA table_info(changes)").all() as Array<{ name: string }>;
   if (!changesCols2.some((c) => c.name === "section_details")) {

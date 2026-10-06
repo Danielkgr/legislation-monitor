@@ -130,41 +130,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
             brief,
             section_details: JSON.parse(sectionDetailsJson),
           };
-
-          // Store full diffs in a separate table for viewing
-          try {
-            const createDiffsTable = `
-              CREATE TABLE IF NOT EXISTS content_diffs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                change_id INTEGER NOT NULL,
-                side TEXT NOT NULL CHECK(side IN ('old', 'new')),
-                line_number INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                FOREIGN KEY (change_id) REFERENCES changes(id) ON DELETE CASCADE
-              )
-            `;
-            db.exec(createDiffsTable);
-
-            const oldLines = oldText.split("\n");
-            const newLines = newText.split("\n");
-
-            // Store context around changes
-            const insertDiffLine = db.prepare(
-              "INSERT INTO content_diffs (change_id, side, line_number, content) VALUES (?, ?, ?, ?)",
-            );
-            for (let i = 0; i < Math.min(oldLines.length, 500); i++) {
-              if (oldLines[i] && oldLines[i].trim()) {
-                insertDiffLine.run(changeRes.lastInsertRowid, "old", i + 1, oldLines[i]);
-              }
-            }
-            for (let i = 0; i < Math.min(newLines.length, 500); i++) {
-              if (newLines[i] && newLines[i].trim()) {
-                insertDiffLine.run(changeRes.lastInsertRowid, "new", i + 1, newLines[i]);
-              }
-            }
-          } catch (diffErr) {
-            console.warn("Failed to store diff lines:", diffErr);
-          }
         }
       }
 

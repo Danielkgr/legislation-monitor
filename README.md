@@ -63,7 +63,6 @@ On first launch the app creates a SQLite database at `.data/legislation.db`, in 
 | `versions` | A snapshot of an Act's text at each check, with its content hash |
 | `changes` | Each detected difference between versions, including its change brief |
 | `settings` | Key-value store for runtime settings, such as the LLM endpoint and the pending-changes counter |
-| `content_diffs` | Line-by-line diff data for the viewer, created on the first detected change |
 
 <br>
 
