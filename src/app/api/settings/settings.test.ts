@@ -14,6 +14,8 @@ const post = (llm: Record<string, unknown>) =>
 
 beforeEach(() => {
   delete process.env.LLM_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.LLM_PROVIDER;
   useTestDatabase();
 });
 
@@ -53,5 +55,34 @@ describe("/api/settings", () => {
   it("reports hasApiKey false when no key is stored or set in the environment", async () => {
     const body = await (await GET()).json();
     expect(body.llm.hasApiKey).toBe(false);
+  });
+
+  it("stores Claude settings without ever returning the Claude key", async () => {
+    const res = await post({
+      provider: "anthropic",
+      anthropicApiKey: "sk-ant-test-secret",
+      anthropicModel: "claude-sonnet-5-5",
+      anthropicEffort: "medium",
+    });
+    const text = await res.text();
+    expect(text).not.toContain("sk-ant-test-secret");
+    expect(JSON.parse(text).llm).toMatchObject({
+      provider: "anthropic",
+      anthropicModel: "claude-sonnet-5-5",
+      anthropicEffort: "medium",
+      hasAnthropicApiKey: true,
+      enabled: true,
+    });
+    expect(getLLMSettings().anthropicApiKey).toBe("sk-ant-test-secret");
+
+    await post({ anthropicApiKey: "" });
+    expect(getLLMSettings().anthropicApiKey).toBe("sk-ant-test-secret");
+    await post({ clearAnthropicApiKey: true });
+    expect(getLLMSettings().anthropicApiKey).toBe("");
+  });
+
+  it("rejects an unknown provider or effort level", async () => {
+    expect((await post({ provider: "gpt" })).status).toBe(400);
+    expect((await post({ anthropicEffort: "max" })).status).toBe(400);
   });
 });

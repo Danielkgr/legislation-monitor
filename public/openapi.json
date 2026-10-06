@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Legislation Monitor API",
-    "description": "Automated legislative change detection for Australian federal and Victorian Acts of Parliament.\nMonitor legislation for amendments, repeals, and insertions by scraping official registers,\ncomparing content via hashing, and surfacing structured diffs.\n\n## Quick Start\n\n1. Install & start the server:\n   ```bash\n   npm install\n   npm run dev\n   ```\n2. Base URL: `http://localhost:3000`\n3. Open `/docs` for interactive Swagger UI access. The raw specification is served at `/api/openapi` and also available statically at `/openapi.json`.\n\n## Architecture\n\n- **Database**: SQLite with WAL mode (stored in `.data/legislation.db`)\n- **Scrapers**: Cheerio-based HTML parsers for federal and Victorian legislation sites\n- **Change detection**: Content hashing + unified diff analysis\n- **Change briefs**: Optional LLM-generated stakeholder summaries (any OpenAI-compatible endpoint) with a deterministic heuristic fallback\n- **Auto-seed**: 5 Acts are seeded on first run (3 federal, 2 Victorian)",
+    "description": "Automated legislative change detection for Australian federal and Victorian Acts of Parliament.\nMonitor legislation for amendments, repeals, and insertions by scraping official registers,\ncomparing content via hashing, and surfacing structured diffs.\n\n## Quick Start\n\n1. Install & start the server:\n   ```bash\n   npm install\n   npm run dev\n   ```\n2. Base URL: `http://localhost:3000`\n3. Open `/docs` for interactive Swagger UI access. The raw specification is served at `/api/openapi` and also available statically at `/openapi.json`.\n\n## Architecture\n\n- **Database**: SQLite with WAL mode (stored in `.data/legislation.db`)\n- **Scrapers**: Cheerio-based HTML parsers for federal and Victorian legislation sites\n- **Change detection**: Content hashing + unified diff analysis\n- **Change briefs**: Optional stakeholder briefs from Claude or any OpenAI-compatible endpoint, with a deterministic heuristic fallback\n- **Auto-seed**: 7 Acts are seeded on first run (4 federal, 3 Victorian)",
     "version": "0.1.0",
     "contact": {
       "name": "Danielkgr",
@@ -463,6 +463,16 @@
           },
           "500": {
             "description": "Server error"
+          },
+          "400": {
+            "description": "Unknown provider or effort level",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -804,6 +814,22 @@
           "hasApiKey": {
             "type": "boolean",
             "description": "Whether an API key is stored in settings or set in the environment.  The key itself is never returned."
+          },
+          "provider": {
+            "type": "string",
+            "enum": ["openai-compatible", "anthropic"]
+          },
+          "anthropicModel": {
+            "type": "string",
+            "description": "Claude model, claude-opus-5-5 by default"
+          },
+          "anthropicEffort": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "hasAnthropicApiKey": {
+            "type": "boolean",
+            "description": "Whether a Claude API key is stored or ANTHROPIC_API_KEY is set.  The key itself is never returned."
           }
         }
       },
@@ -836,6 +862,25 @@
               },
               "maxTokens": {
                 "type": "integer"
+              },
+              "provider": {
+                "type": "string",
+                "enum": ["openai-compatible", "anthropic"]
+              },
+              "anthropicApiKey": {
+                "type": "string",
+                "description": "New Claude API key.  Blank or omitted keeps the stored key."
+              },
+              "clearAnthropicApiKey": {
+                "type": "boolean",
+                "description": "Set to true to remove the stored Claude API key."
+              },
+              "anthropicModel": {
+                "type": "string"
+              },
+              "anthropicEffort": {
+                "type": "string",
+                "enum": ["low", "medium", "high"]
               }
             }
           }
