@@ -21,7 +21,7 @@ A local web app and REST API that watches Acts of Parliament for amendments, rep
 > [!IMPORTANT]
 > It shows what text changed, not what the change means, so it is not a legal research or advice tool.  It covers Commonwealth and Victorian legislation only.  Everything lives in a local SQLite file, with no accounts and no sync.  It sends no notifications of its own, so periodic checking needs an external cron job that calls the check endpoint (see [Adding alerts](#adding-alerts)).
 
-It is a working prototype.  It runs locally against both official registers.  The scrapers follow the current markup of each site and will need maintenance when either register changes.
+It is a working prototype.  The scrapers follow each register's URL scheme and markup, and will need maintenance when either register changes.  The tests run against synthetic HTML fixtures, not the live registers.
 
 <br>
 
@@ -48,8 +48,11 @@ Each jurisdiction has its own scraper, tuned to the structure of its register.
 
 | Register | Approach |
 |---|---|
-| **Federal** ([legislation.gov.au](https://www.legislation.gov.au)) | Parses the server-rendered HTML with Cheerio and extracts the page title and main content.  If the primary selectors miss, it falls back through several others. |
-| **Victorian** ([legislation.vic.gov.au](https://www.legislation.vic.gov.au)) | The register runs on the Tide framework.  The scraper reads the Act page and rejects anything that is not one, such as the register's "page not found" page.  When it cannot read the Act, the check fails with an error and stores nothing, so an outage never shows up as an amendment. |
+| **Federal** ([legislation.gov.au](https://www.legislation.gov.au)) | Watches each Act at `https://www.legislation.gov.au/<title ID>/latest/text`, which always serves the latest compilation.  Links to a point-in-time version and the register's legacy Details, Latest and Series links are normalised when an Act is added.  The scraper parses the HTML with Cheerio, extracts the page title and main content, and stores the compilation ID, number and date when the page shows them. |
+| **Victorian** ([legislation.vic.gov.au](https://www.legislation.vic.gov.au)) | Watches each Act at `https://www.legislation.vic.gov.au/in-force/acts/<act name>`, which always serves the latest version.  Links to a numbered version are normalised when an Act is added.  The scraper rejects anything that is not an Act page, such as the register's "page not found" page.  When it cannot read the Act, the check fails with an error and stores nothing, so an outage never shows up as an amendment. |
+
+> [!CAUTION]
+> The URL handling and the compilation metadata patterns follow the registers' published link formats and are tested on synthetic HTML.  They have not yet been run against the live registers.  The [lex-au](https://github.com/cchew/lex-au) project reports that the Federal Register renders Act text in the browser from EPUB files.  If so, a plain HTML fetch of the latest-version page sees only the page shell, and changes would show up only when the shell's compilation details change.  A live run will settle it.
 
 Both scrapers retry network errors, timeouts, HTTP 429 and 5xx responses twice, waiting 1 s and then 2 s, with a 30-second timeout on each attempt.  Other 4xx responses, such as 404, fail at once.  Both hash the normalised text with SHA-256 to detect change.
 
@@ -77,15 +80,15 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) for the dashboard.  Five Acts are seeded on the first run.
+Open [http://localhost:3000](http://localhost:3000) for the dashboard.  Seven Acts are seeded on the first run, each watched at its latest version.  The same Acts appear as quick-add presets when you watch a new Act.
 
 > [!WARNING]
 > Legislation Monitor is a local, single-user tool.  No endpoint asks for a login, including `DELETE /api/acts/:id` and `POST /api/settings`.  `npm run dev` and `npm start` bind to 127.0.0.1, so only the same machine can reach the app.  Do not expose it on a network unless an authenticating reverse proxy sits in front of it.
 
 | Jurisdiction | Seeded Acts |
 |---|---|
-| **Commonwealth** | *Privacy Act 1988*, *Corporations Act 2001*, *Work Health and Safety Act 2011* |
-| **Victoria** | *Crimes Act 1958*, *Occupiers Liability Act 1983* |
+| **Commonwealth** | *Privacy Act 1988*, *Corporations Act 2001*, *Fair Work Act 2009*, *Work Health and Safety Act 2011* |
+| **Victoria** | *Crimes Act 1958*, *Wrongs Act 1958*, *Charter of Human Rights and Responsibilities Act 2006* |
 
 <br>
 
@@ -115,11 +118,11 @@ A full [OpenAPI 3.0](https://spec.openapis.org/oas/v3.0.3) specification ships w
 | Method | Endpoint | What it does |
 |---|---|---|
 | `GET` | `/api/acts` | Lists every watched Act with a change summary |
-| `POST` | `/api/acts` | Adds an Act to watch |
+| `POST` | `/api/acts` | Adds an Act to watch, storing the URL of its latest version |
 | `DELETE` | `/api/acts/:id` | Stops watching an Act |
 | `GET` | `/api/acts/:id` | Returns an Act's details and metadata |
 | `POST` | `/api/acts/:id/check` | Scrapes and compares the Act immediately |
-| `GET` | `/api/acts/:id/versions` | Lists every stored version of an Act |
+| `GET` | `/api/acts/:id/versions` | Lists every stored version of an Act, with compilation or version details when the page showed them |
 | `GET` | `/api/changes/:actId` | Returns detected changes with summaries, affected groups, and briefs |
 | `GET` | `/api/changes/:actId/export` | Exports an Act's changes as JSON by default, or as a Markdown report with `?format=md` |
 | `GET` | `/api/changes/count` | Returns the pending-changes counter |
@@ -135,20 +138,23 @@ Every endpoint returns JSON.  Errors come back as `{ "error": "message" }` with 
 ```jsonc
 // Request
 {
-  "title": "My Act 2025",                       // required, human-readable title
-  "url": "https://.../Details/C2025C00XXX",     // required, legislation URL
+  "title": "Privacy Act 1988",                  // required, human-readable title
+  "url": "https://www.legislation.gov.au/C2004A03712/latest/text", // required
   "jurisdiction": "federal"                     // optional, "federal" (default) or "vic"
 }
 
 // Response 201, Act created
 {
   "id": 6,
-  "title": "My Act 2025",
-  "url": "...",
+  "title": "Privacy Act 1988",
+  "url": "https://www.legislation.gov.au/C2004A03712/latest/text",
   "jurisdiction": "federal",
   "created_at": "2026-08-15T10:00:00Z",
   "updated_at": "2026-08-15T10:00:00Z"
 }
+
+// Response 400, a URL the scrapers cannot watch
+{ "error": "Use the Act's page on the Federal Register of Legislation, such as https://www.legislation.gov.au/C2004A03712/latest/text" }
 
 // Response 409, duplicate URL
 { "error": "This Act is already being watched", "id": 1 }
@@ -163,7 +169,8 @@ Every endpoint returns JSON.  Errors come back as `{ "error": "message" }` with 
 // Response 200
 {
   "success": true,
-  "hasChange": false,    // true if a new version was detected
+  "hasChange": false,    // true when this check recorded a change against the previous version
+  "baseline": false,     // true when this check stored the Act's first version
   "change": null,        // the change record when hasChange is true
   "new_version_count": 12
 }
@@ -227,7 +234,7 @@ Framework settings, such as rewrites, redirects, and environment variables, live
 
 1. Add the new jurisdiction identifier to the `jurisdiction` type in `src/lib/db.ts`.
 2. Write a `scrapeNewJurisdiction()` function in `src/lib/scrapers.ts`, following the federal and Victorian patterns.
-3. Update `extractVersionLabel()` for any version-number patterns in that jurisdiction's URLs.
+3. Add URL normalisation for the new register to `src/lib/registers.ts`, and any version metadata patterns to `src/lib/scrapers.ts`.
 
 ### Adding alerts
 

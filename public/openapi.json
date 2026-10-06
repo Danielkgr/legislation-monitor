@@ -65,8 +65,8 @@
                 "$ref": "#/components/schemas/AddActRequest"
               },
               "example": {
-                "title": "My Act 2025",
-                "url": "https://www.legislation.gov.au/Details/C2025C00XXX",
+                "title": "Privacy Act 1988",
+                "url": "https://www.legislation.gov.au/C2004A03712/latest/text",
                 "jurisdiction": "federal"
               }
             }
@@ -84,7 +84,7 @@
             }
           },
           "400": {
-            "description": "Validation error",
+            "description": "Missing fields, or a URL the scrapers cannot watch",
             "content": {
               "application/json": {
                 "example": {
@@ -554,7 +554,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Direct URL to the legislation page"
+            "description": "Link to the Act on its register.  Stored in the form that serves the latest version"
           },
           "jurisdiction": {
             "type": "string",
@@ -582,7 +582,7 @@
           },
           "content_hash": {
             "type": "string",
-            "description": "CRC32-style content hash for change detection"
+            "description": "SHA-256 of the normalised text, used to detect change"
           },
           "plain_text": {
             "type": "string",
@@ -591,6 +591,31 @@
           "source_url": {
             "type": "string",
             "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "description": "Compilation or version details read from the page, when it shows them",
+            "properties": {
+              "titleId": {
+                "type": "string"
+              },
+              "compilationId": {
+                "type": "string"
+              },
+              "compilationNumber": {
+                "type": "string"
+              },
+              "compilationDate": {
+                "type": "string"
+              },
+              "versionNumber": {
+                "type": "string"
+              },
+              "resolvedUrl": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -681,6 +706,35 @@
           "to_label": {
             "type": "string",
             "nullable": true
+          },
+          "act_title": {
+            "type": "string"
+          },
+          "section_details": {
+            "type": "array",
+            "description": "Table-of-contents sections the change touched",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sectionNumber": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "sectionTitle": {
+                  "type": "string"
+                },
+                "changeType": {
+                  "type": "string",
+                  "enum": ["added", "removed", "modified"]
+                },
+                "parentPath": {
+                  "type": "string"
+                },
+                "context": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -692,7 +746,11 @@
           },
           "hasChange": {
             "type": "boolean",
-            "description": "Whether a new version was detected"
+            "description": "Whether this check recorded a change against the previous version"
+          },
+          "baseline": {
+            "type": "boolean",
+            "description": "Whether this check stored the Act's first version"
           },
           "change": {
             "allOf": [
