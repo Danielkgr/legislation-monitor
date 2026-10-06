@@ -34,7 +34,7 @@ export default function AddActForm({ onSuccess, onCancel }: AddActFormProps) {
         const data = await res.json();
         setError(data.error || "Failed to add Act");
       }
-    } catch (err) {
+    } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);

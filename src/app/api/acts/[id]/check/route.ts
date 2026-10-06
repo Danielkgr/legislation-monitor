@@ -1,20 +1,30 @@
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
+import { type Act, connectDB, type Version } from "@/lib/db";
 import { scrapeAct } from "@/lib/scrapers";
 import { analyzeChanges } from "@/lib/diff";
-import { generateChangeBrief } from "@/lib/llm";
+import { type ChangeBrief, generateChangeBrief } from "@/lib/llm";
 import {
   serializeTOCFromHTML,
   deserializeTOC,
   identifyAffectedSectionsEnriched,
 } from "@/lib/structure";
 
-export async function POST(_req: any, { params }: { params: Promise<{ id: string }> }) {
+interface CheckedChange {
+  id: number;
+  summary: string;
+  sections_changed: string[];
+  affected_groups: string[];
+  change_count: number;
+  brief: ChangeBrief;
+  section_details: unknown[];
+}
+
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const db = connectDB();
   const { id } = await params;
 
   try {
-    const act = db.prepare("SELECT * FROM acts WHERE id = ?").get(id) as any;
+    const act = db.prepare<[string], Act>("SELECT * FROM acts WHERE id = ?").get(id);
     if (!act) {
       return NextResponse.json({ error: "Act not found" }, { status: 404 });
     }
@@ -24,15 +34,19 @@ export async function POST(_req: any, { params }: { params: Promise<{ id: string
 
     // Check if content has changed since the latest version
     const latestVersion = db
-      .prepare(`SELECT * FROM versions WHERE act_id = ? ORDER BY fetched_at DESC LIMIT 1`)
-      .get(id) as any;
+      .prepare<[string], Version>(
+        `SELECT * FROM versions WHERE act_id = ? ORDER BY fetched_at DESC LIMIT 1`,
+      )
+      .get(id);
 
     let newVersionId: number | null = null;
-    let changeRecord: any = null;
+    let changeRecord: CheckedChange | null = null;
 
     // Store new version
-    const existingVersions: any[] = db
-      .prepare("SELECT content_hash FROM versions WHERE act_id = ?")
+    const existingVersions = db
+      .prepare<[string], Pick<Version, "content_hash">>(
+        "SELECT content_hash FROM versions WHERE act_id = ?",
+      )
       .all(id);
     const existingHashes = new Set(existingVersions.map((v) => v.content_hash));
 
@@ -51,7 +65,7 @@ export async function POST(_req: any, { params }: { params: Promise<{ id: string
         act.url,
         structure,
       );
-      newVersionId = result.lastInsertRowid as number;
+      newVersionId = Number(result.lastInsertRowid);
 
       // Compare with previous version if one exists
       if (latestVersion) {
@@ -108,7 +122,7 @@ export async function POST(_req: any, { params }: { params: Promise<{ id: string
             sectionDetailsJson,
           );
           changeRecord = {
-            id: changeRes.lastInsertRowid as number,
+            id: Number(changeRes.lastInsertRowid),
             summary: brief.summary,
             sections_changed: diffResult.changedSections.slice(0, 10),
             affected_groups: diffResult.affectedGroups,
@@ -162,9 +176,12 @@ export async function POST(_req: any, { params }: { params: Promise<{ id: string
       success: true,
       hasChange: !!newVersionId,
       change: changeRecord,
-      new_version_count: (
-        db.prepare("SELECT COUNT(*) as cnt FROM versions WHERE act_id = ?").get(id) as any
-      ).cnt,
+      new_version_count:
+        db
+          .prepare<[string], { cnt: number }>(
+            "SELECT COUNT(*) as cnt FROM versions WHERE act_id = ?",
+          )
+          .get(id)?.cnt ?? 0,
     });
   } catch (err) {
     console.error("Error checking act:", err);

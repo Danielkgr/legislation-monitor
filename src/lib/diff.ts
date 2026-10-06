@@ -28,7 +28,6 @@ export function analyzeChanges(oldText: string, newText: string, actTitle: strin
   let removedLines = 0;
   const changedSections: string[] = [];
   let inHunk = false;
-  let currentSection: string | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -47,7 +46,6 @@ export function analyzeChanges(oldText: string, newText: string, actTitle: strin
         const lastHeader = findLastSectionHeader(prevText);
         if (lastHeader && !changedSections.includes(lastHeader)) {
           changedSections.push(lastHeader);
-          currentSection = lastHeader;
         }
       }
       continue;
@@ -136,7 +134,6 @@ function isMeaningfulChange(line: string): boolean {
 function detectAffectedGroups(diff: string, actTitle: string): string[] {
   const groups: string[] = [];
   const lower = diff.toLowerCase();
-  const titleLower = actTitle.toLowerCase();
 
   // Check for business/corporate references
   if (
