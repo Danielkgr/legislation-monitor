@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Legislation Monitor API",
-    "description": "Automated legislative change detection for Australian federal and Victorian Acts of Parliament.\nMonitor legislation for amendments, repeals, and insertions by scraping official registers,\ncomparing content via hashing, and surfacing structured diffs.\n\n## Quick Start\n\n1. Install & start the server:\n   ```bash\n   npm install\n   npm run dev\n   ```\n2. Base URL: `http://localhost:3000`\n3. Open `/docs` for interactive Swagger UI access. The raw specification is served at `/api/openapi` and also available statically at `/openapi.json`.\n\n## Architecture\n\n- **Database**: SQLite with WAL mode (stored in `.data/legislation.db`)\n- **Scrapers**: Cheerio-based HTML parsers for federal and Victorian legislation sites\n- **Change detection**: Content hashing + unified diff analysis\n- **Change briefs**: Optional LLM-generated stakeholder summaries (any OpenAI-compatible endpoint) with a deterministic heuristic fallback\n- **Auto-seed**: 5 Acts are seeded on first run (3 federal, 2 Victorian)",
+    "description": "Automated legislative change detection for Australian federal and Victorian Acts of Parliament.\nMonitor legislation for amendments, repeals, and insertions by scraping official registers,\ncomparing content via hashing, and surfacing structured diffs.\n\n## Quick Start\n\n1. Install & start the server:\n   ```bash\n   npm install\n   npm run dev\n   ```\n2. Base URL: `http://localhost:3000`\n3. Open `/docs` for interactive Swagger UI access. The raw specification is served at `/api/openapi` and also available statically at `/openapi.json`.\n\n## Architecture\n\n- **Database**: SQLite with WAL mode (stored in `.data/legislation.db`)\n- **Scrapers**: Cheerio-based HTML parsers for federal and Victorian legislation sites\n- **Change detection**: Content hashing + unified diff analysis\n- **Change briefs**: Optional stakeholder briefs from Claude or any OpenAI-compatible endpoint, with a deterministic heuristic fallback\n- **Auto-seed**: 7 Acts are seeded on first run (4 federal, 3 Victorian)",
     "version": "0.1.0",
     "contact": {
       "name": "Danielkgr",
@@ -65,8 +65,8 @@
                 "$ref": "#/components/schemas/AddActRequest"
               },
               "example": {
-                "title": "My Act 2025",
-                "url": "https://www.legislation.gov.au/Details/C2025C00XXX",
+                "title": "Privacy Act 1988",
+                "url": "https://www.legislation.gov.au/C2004A03712/latest/text",
                 "jurisdiction": "federal"
               }
             }
@@ -84,7 +84,7 @@
             }
           },
           "400": {
-            "description": "Validation error",
+            "description": "Missing fields, or a URL the scrapers cannot watch",
             "content": {
               "application/json": {
                 "example": {
@@ -399,7 +399,7 @@
     "/api/settings": {
       "get": {
         "summary": "Read LLM endpoint settings",
-        "description": "Returns the effective LLM settings (database values take precedence over environment variables).",
+        "description": "Returns the effective LLM settings (database values take precedence over environment variables). The API key is never returned; hasApiKey reports whether one is set.",
         "operationId": "getSettings",
         "tags": ["Settings"],
         "responses": {
@@ -420,7 +420,7 @@
       },
       "post": {
         "summary": "Update LLM endpoint settings",
-        "description": "Persists LLM settings to the database-backed settings store. Any field omitted is left unchanged; passing an empty string for a string field clears it, letting the environment fallback apply.",
+        "description": "Persists LLM settings to the database-backed settings store. Any field omitted is left unchanged; passing an empty string for apiBase or model clears it, letting the environment fallback apply. A blank apiKey keeps the stored key, and clearApiKey removes it. Responses report hasApiKey and never include the key.",
         "operationId": "updateSettings",
         "tags": ["Settings"],
         "requestBody": {
@@ -463,6 +463,16 @@
           },
           "500": {
             "description": "Server error"
+          },
+          "400": {
+            "description": "Unknown provider or effort level",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -554,7 +564,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Direct URL to the legislation page"
+            "description": "Link to the Act on its register.  Stored in the form that serves the latest version"
           },
           "jurisdiction": {
             "type": "string",
@@ -582,7 +592,7 @@
           },
           "content_hash": {
             "type": "string",
-            "description": "CRC32-style content hash for change detection"
+            "description": "SHA-256 of the normalised text, used to detect change"
           },
           "plain_text": {
             "type": "string",
@@ -591,6 +601,31 @@
           "source_url": {
             "type": "string",
             "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "description": "Compilation or version details read from the page, when it shows them",
+            "properties": {
+              "titleId": {
+                "type": "string"
+              },
+              "compilationId": {
+                "type": "string"
+              },
+              "compilationNumber": {
+                "type": "string"
+              },
+              "compilationDate": {
+                "type": "string"
+              },
+              "versionNumber": {
+                "type": "string"
+              },
+              "resolvedUrl": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -620,8 +655,16 @@
           },
           "source": {
             "type": "string",
-            "enum": ["llm", "heuristic"],
-            "description": "Provenance — whether the LLM or the built-in heuristic produced the brief"
+            "enum": ["claude", "llm", "heuristic"],
+            "description": "Provenance: Claude, a model behind an OpenAI-compatible endpoint, or the built-in heuristic"
+          },
+          "model": {
+            "type": "string",
+            "description": "The model that wrote the brief, as its API reported it"
+          },
+          "fallbackReason": {
+            "type": "string",
+            "description": "Why the heuristic wrote the brief although a model was configured"
           }
         }
       },
@@ -681,6 +724,35 @@
           "to_label": {
             "type": "string",
             "nullable": true
+          },
+          "act_title": {
+            "type": "string"
+          },
+          "section_details": {
+            "type": "array",
+            "description": "Table-of-contents sections the change touched",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sectionNumber": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "sectionTitle": {
+                  "type": "string"
+                },
+                "changeType": {
+                  "type": "string",
+                  "enum": ["added", "removed", "modified"]
+                },
+                "parentPath": {
+                  "type": "string"
+                },
+                "context": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -692,7 +764,11 @@
           },
           "hasChange": {
             "type": "boolean",
-            "description": "Whether a new version was detected"
+            "description": "Whether this check recorded a change against the previous version"
+          },
+          "baseline": {
+            "type": "boolean",
+            "description": "Whether this check stored the Act's first version"
           },
           "change": {
             "allOf": [
@@ -726,10 +802,6 @@
             "type": "string",
             "description": "Base URL of any OpenAI-compatible /chat/completions endpoint (cloud or local)"
           },
-          "apiKey": {
-            "type": "string",
-            "description": "API key, if the endpoint requires one"
-          },
           "model": {
             "type": "string"
           },
@@ -738,6 +810,26 @@
           },
           "maxTokens": {
             "type": "integer"
+          },
+          "hasApiKey": {
+            "type": "boolean",
+            "description": "Whether an API key is stored in settings or set in the environment.  The key itself is never returned."
+          },
+          "provider": {
+            "type": "string",
+            "enum": ["openai-compatible", "anthropic"]
+          },
+          "anthropicModel": {
+            "type": "string",
+            "description": "Claude model, claude-opus-5-5 by default"
+          },
+          "anthropicEffort": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "hasAnthropicApiKey": {
+            "type": "boolean",
+            "description": "Whether a Claude API key is stored or ANTHROPIC_API_KEY is set.  The key itself is never returned."
           }
         }
       },
@@ -755,7 +847,12 @@
                 "type": "string"
               },
               "apiKey": {
-                "type": "string"
+                "type": "string",
+                "description": "New API key.  Blank or omitted keeps the stored key."
+              },
+              "clearApiKey": {
+                "type": "boolean",
+                "description": "Set to true to remove the stored API key."
               },
               "model": {
                 "type": "string"
@@ -765,6 +862,25 @@
               },
               "maxTokens": {
                 "type": "integer"
+              },
+              "provider": {
+                "type": "string",
+                "enum": ["openai-compatible", "anthropic"]
+              },
+              "anthropicApiKey": {
+                "type": "string",
+                "description": "New Claude API key.  Blank or omitted keeps the stored key."
+              },
+              "clearAnthropicApiKey": {
+                "type": "boolean",
+                "description": "Set to true to remove the stored Claude API key."
+              },
+              "anthropicModel": {
+                "type": "string"
+              },
+              "anthropicEffort": {
+                "type": "string",
+                "enum": ["low", "medium", "high"]
               }
             }
           }

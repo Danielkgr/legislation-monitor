@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import CheckButton from "@/components/CheckButton";
@@ -32,7 +32,16 @@ interface ChangeBrief {
   whoIsAffected: string;
   whyItMatters: string;
   significance: number;
-  source: "llm" | "heuristic";
+  source: "claude" | "llm" | "heuristic";
+  model?: string;
+  fallbackReason?: string;
+}
+
+/** Who wrote a brief, for its provenance label. */
+function briefLabel(brief: ChangeBrief): string {
+  if (brief.source === "claude") return "Claude brief";
+  if (brief.source === "llm") return "Model brief";
+  return "Heuristic brief";
 }
 
 interface EnrichedSectionDetail {
@@ -73,28 +82,35 @@ export default function ActDetail() {
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState<"json" | "md" | null>(null);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [actRes, versionsRes, changesRes] = await Promise.all([
-        fetch(`/api/acts/${actId}`),
-        fetch(`/api/acts/${actId}/versions`),
-        fetch(`/api/changes/${actId}`),
-      ]);
-
-      if (actRes.ok) setAct((await actRes.json()) as ActData);
-      if (versionsRes.ok) setVersions((await versionsRes.json()) as Version[]);
-      if (changesRes.ok) setChanges((await changesRes.json()) as ChangeRecord[]);
-    } catch (err) {
-      console.error("Failed to fetch act data:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [actId]);
+  // Bumping reloadKey re-runs the effect that loads the Act, its versions
+  // and its changes.
+  const [reloadKey, setReloadKey] = useState(0);
+  const refresh = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    let cancelled = false;
+    Promise.all([
+      fetch(`/api/acts/${actId}`),
+      fetch(`/api/acts/${actId}/versions`),
+      fetch(`/api/changes/${actId}`),
+    ])
+      .then(async ([actRes, versionsRes, changesRes]) => {
+        const actData = actRes.ok ? ((await actRes.json()) as ActData) : null;
+        const versionData = versionsRes.ok ? ((await versionsRes.json()) as Version[]) : null;
+        const changeData = changesRes.ok ? ((await changesRes.json()) as ChangeRecord[]) : null;
+        if (cancelled) return;
+        if (actData) setAct(actData);
+        if (versionData) setVersions(versionData);
+        if (changeData) setChanges(changeData);
+      })
+      .catch((err) => console.error("Failed to fetch act data:", err))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [actId, reloadKey]);
 
   const handleCheck = async () => {
     setChecking(true);
@@ -110,7 +126,7 @@ export default function ActDetail() {
       console.error("Check failed:", err);
     } finally {
       setChecking(false);
-      fetchData();
+      refresh();
     }
   };
 
@@ -494,15 +510,25 @@ function ChangeCard({ change, versionMap }: { change: ChangeRecord; versionMap: 
               <SignificanceBadge value={brief.significance} />
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                  brief.source === "llm" ? "bg-accent/10 text-accent" : "bg-white/[0.04] text-faint"
+                  brief.source === "heuristic"
+                    ? "bg-white/[0.04] text-faint"
+                    : "bg-accent/10 text-accent"
                 }`}
+                title={
+                  brief.model ? `Written by ${brief.model}` : "Written by the built-in heuristic"
+                }
               >
-                {brief.source === "llm" ? "AI brief" : "Auto summary"}
+                {briefLabel(brief)}
               </span>
             </>
           )}
         </div>
       </div>
+
+      {/* Why the heuristic stood in for a configured model */}
+      {brief?.fallbackReason && (
+        <p className="text-xs text-faint mb-2">Written by the heuristic: {brief.fallbackReason}</p>
+      )}
 
       {/* Summary */}
       {change.summary && (
