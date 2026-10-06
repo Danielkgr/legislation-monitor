@@ -4,23 +4,35 @@ import fs from "fs";
 
 type DB = Database.Database;
 
-const DB_DIR = path.join(process.cwd(), ".data");
-const DB_PATH = path.join(DB_DIR, "legislation.db");
-
-// Ensure data directory exists
-fs.mkdirSync(DB_DIR, { recursive: true });
+/**
+ * Where the SQLite file lives.  LEGISLATION_DB_PATH overrides the default
+ * `.data/legislation.db`, which lets tests and demos use their own file
+ * (or ":memory:").
+ */
+function resolveDbPath(): string {
+  return process.env.LEGISLATION_DB_PATH || path.join(process.cwd(), ".data", "legislation.db");
+}
 
 let db: DB | null = null;
 
 function connectDB(): DB {
   if (!db) {
-    db = new Database(DB_PATH);
+    const dbPath = resolveDbPath();
+    if (dbPath !== ":memory:") fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    db = new Database(dbPath);
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = on");
     initSchema();
-    seedIfEmpty();
+    // SEED_DEFAULT_ACTS=false starts with an empty watch list (tests, demos).
+    if (process.env.SEED_DEFAULT_ACTS !== "false") seedIfEmpty();
   }
   return db;
+}
+
+/** Close the connection so the next connectDB() opens the current path again. */
+export function closeDB(): void {
+  db?.close();
+  db = null;
 }
 
 function initSchema() {
