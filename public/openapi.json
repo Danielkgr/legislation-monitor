@@ -645,8 +645,16 @@
           },
           "source": {
             "type": "string",
-            "enum": ["llm", "heuristic"],
-            "description": "Provenance — whether the LLM or the built-in heuristic produced the brief"
+            "enum": ["claude", "llm", "heuristic"],
+            "description": "Provenance: Claude, a model behind an OpenAI-compatible endpoint, or the built-in heuristic"
+          },
+          "model": {
+            "type": "string",
+            "description": "The model that wrote the brief, as its API reported it"
+          },
+          "fallbackReason": {
+            "type": "string",
+            "description": "Why the heuristic wrote the brief although a model was configured"
           }
         }
       },

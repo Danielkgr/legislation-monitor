@@ -1,5 +1,5 @@
 import { type Change, connectDB } from "./db";
-import type { ChangeBrief } from "./llm";
+import type { ChangeBrief } from "./brief";
 import type { EnrichedSectionChange } from "./structure";
 
 /** A change record as the API returns it, with its JSON columns parsed. */

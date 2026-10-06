@@ -1,6 +1,7 @@
 import { type Act, connectDB, incrementPendingChanges, type Version } from "./db";
 import { analyzeChanges } from "./diff";
-import { type ChangeBrief, generateChangeBrief } from "./llm";
+import type { ChangeBrief } from "./brief";
+import { generateChangeBrief } from "./llm";
 import { type ScraperResult, scrapeAct } from "./scrapers";
 import {
   deserializeTOC,
