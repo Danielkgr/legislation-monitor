@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { hashText, normalizeText, ScrapeError, scrapeAct } from "./scrapers";
+import {
+  extractFederalMetadata,
+  extractVicMetadata,
+  hashText,
+  normalizeText,
+  ScrapeError,
+  scrapeAct,
+} from "./scrapers";
 
 describe("normalizeText", () => {
   it("preserves line/paragraph structure", () => {
@@ -142,5 +149,50 @@ describe("scrapeAct (Victoria)", () => {
     await expect(attempt).rejects.toThrow("Nothing was stored");
     // No fallback to the register's search page.
     expect(fetchMock.mock.calls.map(([u]) => String(u))).toEqual([url]);
+  });
+});
+
+describe("compilation and version metadata", () => {
+  // Synthetic page text in the shape the registers print, not copied from them.
+  it("reads the compilation ID, number and date from a federal page", () => {
+    const text = [
+      "Example Act 2026",
+      "Latest version C2026C00123 (C7)",
+      "Compilation No. 7",
+      "Compilation date: 1 March 2026",
+    ].join("\n");
+    expect(
+      extractFederalMetadata(text, "https://www.legislation.gov.au/C2026A00001/latest/text"),
+    ).toEqual({
+      titleId: "C2026A00001",
+      compilationId: "C2026C00123",
+      compilationNumber: "7",
+      compilationDate: "1 March 2026",
+      resolvedUrl: "https://www.legislation.gov.au/C2026A00001/latest/text",
+    });
+  });
+
+  it("returns only the resolved URL when the page shows no compilation facts", () => {
+    expect(extractFederalMetadata("Example Act 2026", "https://example.test/a")).toEqual({
+      resolvedUrl: "https://example.test/a",
+    });
+  });
+
+  it("labels a federal version with its compilation number and ID", async () => {
+    const html = FEDERAL_FIXTURE.replace(
+      "<h1>Example Act 2026</h1>",
+      "<h1>Example Act 2026</h1><p>C2026C00123 (C7)</p>",
+    );
+    mockFetch({ "https://legislation.example/act": { body: html } });
+    const result = await scrapeAct("https://legislation.example/act", "federal");
+    expect(result.versionLabel).toBe("Compilation No. 7 (C2026C00123)");
+    expect(result.metadata?.compilationId).toBe("C2026C00123");
+  });
+
+  it("reads a Victorian version number from the served URL or the page text", () => {
+    const base = "https://www.legislation.vic.gov.au/in-force/acts/example-services-act-2025";
+    expect(extractVicMetadata("", `${base}/012`).versionNumber).toBe("012");
+    expect(extractVicMetadata("Authorised Version No. 004", base).versionNumber).toBe("004");
+    expect(extractVicMetadata("No version shown", base).versionNumber).toBeUndefined();
   });
 });
