@@ -13,7 +13,7 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Legislation Monitor — Track What's Changing in the Law",
+  title: "Legislation Monitor, Track What's Changing in the Law",
   description:
     "Monitor amendments to Australian federal and Victorian legislation. Get plain-language summaries of what changed and who it affects.",
 };
