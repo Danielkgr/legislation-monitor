@@ -2,33 +2,29 @@
 
 # Legislation Monitor
 
-### Change detection for Commonwealth and Victorian legislation, with a side-by-side diff of every amendment
+**Change detection for Commonwealth and Victorian legislation, with a side-by-side diff of every amendment**
 
-![2 jurisdictions](https://img.shields.io/badge/jurisdictions-Cth_and_Vic-0969da?style=for-the-badge) [![CI](https://img.shields.io/github/actions/workflow/status/Danielkgr/legislation-monitor/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/Danielkgr/legislation-monitor/actions/workflows/ci.yml) ![local SQLite storage](https://img.shields.io/badge/storage-local_SQLite-8250df?style=for-the-badge) ![Next.js 16](https://img.shields.io/badge/Next.js-16-57606a?style=for-the-badge&logo=nextdotjs&logoColor=white) ![MIT licence](https://img.shields.io/badge/licence-MIT-57606a?style=for-the-badge)
+Commonwealth and Victoria · Local SQLite storage · Next.js 16 · MIT licence
+
+[![CI](https://github.com/Danielkgr/legislation-monitor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Danielkgr/legislation-monitor/actions/workflows/ci.yml)
 
 </div>
 
-<br>
+---
 
-> Amendments reach the official registers as new compilations, and finding what moved means reading the new text against the old.  Legislation Monitor keeps a local snapshot of each Act it watches, fetches the Act again on request, and shows a side-by-side diff when the text changes.
+## About
 
-<br>
-
-## What it is
-
-A local web app and REST API that watches Acts of Parliament for amendments, repeals, and insertions.  It scrapes the Federal Register of Legislation and the Victorian legislation site, hashes the text it extracts, and flags any difference from the last stored version.
+Legislation Monitor is a local web app and REST API that watches Acts of Parliament for amendments, repeals, and insertions.  The official registers publish each amendment as a new compilation, so finding what changed means reading the new text against the old.  The app keeps a local snapshot of each Act it watches.  On request it scrapes the Federal Register of Legislation or the Victorian legislation site again, hashes the text it extracts, and shows a side-by-side diff when the text differs from the last stored version.
 
 > [!IMPORTANT]
-> It shows what text changed and drafts a plain-English brief of each change.  The brief is a starting point for a reader, not legal advice, and the app is not a legal research tool.  It covers Commonwealth and Victorian legislation only.  Everything lives in a local SQLite file, with no accounts and no sync.  It does not check on a schedule by itself.  `npm run check-all`, run from cron or a scheduled workflow, checks every Act and can post a digest to Slack or Teams (see [Scheduled checks and alerts](#scheduled-checks-and-alerts)).
+> It shows what text changed and drafts a plain-English brief of each change.  The brief is a starting point for a reader.  It is not legal advice, and the app is not a legal research tool.  It covers Commonwealth and Victorian legislation only.  It stores everything in a local SQLite file, with no accounts and no sync.  It does not check on a schedule by itself.  `npm run check-all`, run from cron or a scheduled workflow, checks every Act and can post a digest to Slack or Teams (see [Scheduled checks and alerts](#scheduled-checks-and-alerts)).
 
-It is a working prototype.  The scrapers follow each register's URL scheme and markup, and will need maintenance when either register changes.  The tests run against synthetic HTML fixtures, not the live registers.
-
-<br>
+It is a working prototype.  The scrapers follow each register's URL scheme and markup, and will need maintenance when either register changes.  The tests run against synthetic HTML fixtures.  They do not touch the live registers.
 
 ## Screenshots
 
 > [!NOTE]
-> These screenshots use demo data.  The Acts and their text are fictional fixtures written by `npm run demo:seed`, not real legislation.
+> These screenshots use demo data.  `npm run demo:seed` writes the Acts and their text as fictional fixtures.  None of it is real legislation.
 
 ![Dashboard showing three fictional Acts labelled as demo fixtures](docs/images/dashboard.png)
 
@@ -42,16 +38,12 @@ It is a working prototype.  The scrapers follow each register's URL scheme and m
 
 **Diff viewer.**  The two demo versions side by side, with removed lines on the left and added lines on the right.
 
-<br>
-
 ## Results
 
 113 Vitest tests cover the diff engine, the scrapers and register URL handling on synthetic HTML fixtures, the table-of-contents parser that maps a change to its sections, the check pipeline, the briefs with the Claude and OpenAI-compatible APIs mocked, the digest script and the API routes.  CI runs them with lint, a format check, a type check and a production build on every push.
 
 > [!NOTE]
-> This version has not yet been run against the live registers or the live Claude API.  The repository publishes no measurement of how reliably it catches real amendments over time.
-
-<br>
+> I have not yet run this version against the live registers or the live Claude API.  The repository publishes no measurement of how reliably it catches real amendments over time.
 
 ## How it works
 
@@ -88,7 +80,7 @@ flowchart TD
 | **Change detection** | A check (the **Check** button, `POST /api/acts/:id/check`, or `npm run check-all` for every Act) fetches the Act's HTML again, hashes the extracted text, and flags anything that differs from the last stored version. |
 | **Side-by-side diffs** | The diff viewer shows two versions side by side and marks added and removed lines.  The API also returns the Parts and sections each change touched, as `section_details`. |
 | **Change briefs** | Each detected change gets a brief with a summary, the key changes, who is affected, why it matters, and a significance score from 0 to 10.  Claude writes it when an Anthropic API key is set, or any OpenAI-compatible endpoint, such as a local model, when one is configured.  Otherwise a deterministic heuristic writes it.  Every brief records who wrote it, and a heuristic brief written because a model call failed says why. |
-| **Dashboard** | One page shows how many Acts are being watched, the split by jurisdiction, and the number of new changes in the last seven days. |
+| **Dashboard** | One page shows how many Acts the app is watching, the split by jurisdiction, and the number of new changes in the last seven days. |
 | **REST API** | Every feature has an endpoint, such as `/api/acts` and `/api/changes/:actId`, for alerts or other tools to call. |
 
 ### Scrapers
@@ -97,11 +89,11 @@ Each jurisdiction has its own scraper, tuned to the structure of its register.
 
 | Register | Approach |
 |---|---|
-| **Federal** ([legislation.gov.au](https://www.legislation.gov.au)) | Watches each Act at `https://www.legislation.gov.au/<title ID>/latest/text`, which always serves the latest compilation.  Links to a point-in-time version and the register's legacy Details, Latest and Series links are normalised when an Act is added.  The scraper parses the HTML with Cheerio, extracts the page title and main content, and stores the compilation ID, number and date when the page shows them. |
-| **Victorian** ([legislation.vic.gov.au](https://www.legislation.vic.gov.au)) | Watches each Act at `https://www.legislation.vic.gov.au/in-force/acts/<act name>`, which always serves the latest version.  Links to a numbered version are normalised when an Act is added.  The scraper rejects anything that is not an Act page, such as the register's "page not found" page.  When it cannot read the Act, the check fails with an error and stores nothing, so an outage never shows up as an amendment. |
+| **Federal** ([legislation.gov.au](https://www.legislation.gov.au)) | Watches each Act at `https://www.legislation.gov.au/<title ID>/latest/text`, which always serves the latest compilation.  When you add an Act, the app normalises links to a point-in-time version and the register's legacy Details, Latest and Series links.  The scraper parses the HTML with Cheerio, extracts the page title and main content, and stores the compilation ID, number and date when the page shows them. |
+| **Victorian** ([legislation.vic.gov.au](https://www.legislation.vic.gov.au)) | Watches each Act at `https://www.legislation.vic.gov.au/in-force/acts/<act name>`, which always serves the latest version.  When you add an Act, the app normalises links to a numbered version.  The scraper rejects anything that is not an Act page, such as the register's "page not found" page.  When it cannot read the Act, the check fails with an error and stores nothing, so an outage never shows up as an amendment. |
 
 > [!CAUTION]
-> The URL handling and the compilation metadata patterns follow the registers' published link formats and are tested on synthetic HTML.  They have not yet been run against the live registers.  The [lex-au](https://github.com/cchew/lex-au) project reports that the Federal Register renders Act text in the browser from EPUB files.  If so, a plain HTML fetch of the latest-version page sees only the page shell, and changes would show up only when the shell's compilation details change.  A live run will settle it.
+> The URL handling and the compilation metadata patterns follow the registers' published link formats, and the tests cover them on synthetic HTML.  I have not yet run them against the live registers.  The [lex-au](https://github.com/cchew/lex-au) project reports that the Federal Register renders Act text in the browser from EPUB files.  If so, a plain HTML fetch of the latest-version page sees only the page shell, and changes would show up only when the shell's compilation details change.  Only a live run can confirm this.
 
 Both scrapers retry network errors, timeouts, HTTP 429 and 5xx responses twice, waiting 1 s and then 2 s, with a 30-second timeout on each attempt.  Other 4xx responses, such as 404, fail at once.  Both hash the normalised text with SHA-256 to detect change.
 
@@ -116,8 +108,6 @@ On first launch the app creates a SQLite database at `.data/legislation.db`, or 
 | `changes` | Each detected difference between versions, including its change brief |
 | `settings` | Key-value store for runtime settings, such as the LLM endpoint and the pending-changes counter |
 
-<br>
-
 ## Quick start
 
 You need Node.js 20.9 or later, which Next.js 16 requires, and a current browser.
@@ -129,7 +119,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) for the dashboard.  Seven Acts are seeded on the first run, each watched at its latest version.  The same Acts appear as quick-add presets when you watch a new Act.
+Open [http://localhost:3000](http://localhost:3000) for the dashboard.  The first run seeds seven Acts, each watched at its latest version.  The same Acts appear as quick-add presets when you watch a new Act.
 
 > [!WARNING]
 > Legislation Monitor is a local, single-user tool.  No endpoint asks for a login, including `DELETE /api/acts/:id` and `POST /api/settings`.  `npm run dev` and `npm start` bind to 127.0.0.1, so only the same machine can reach the app.  Do not expose it on a network unless an authenticating reverse proxy sits in front of it.
@@ -138,8 +128,6 @@ Open [http://localhost:3000](http://localhost:3000) for the dashboard.  Seven Ac
 |---|---|
 | **Commonwealth** | *Privacy Act 1988*, *Corporations Act 2001*, *Fair Work Act 2009*, *Work Health and Safety Act 2011* |
 | **Victoria** | *Crimes Act 1958*, *Wrongs Act 1958*, *Charter of Human Rights and Responsibilities Act 2006* |
-
-<br>
 
 ## Reference
 
@@ -294,7 +282,7 @@ To use the spec in another tool, import `https://raw.githubusercontent.com/Danie
 
 ### Configuration
 
-Environment variables are listed in `.env.example`.  Copy it to `.env.local`, which both the app and `npm run check-all` read.  Values saved on the Settings page take precedence over the environment.  Framework settings, such as rewrites and redirects, live in `next.config.ts`.  The scraper's User-Agent is set inline in `src/lib/scrapers.ts`.  Change it to your own URL if you run a copy.
+Environment variables are listed in `.env.example`.  Copy it to `.env.local`, which both the app and `npm run check-all` read.  Values saved on the Settings page take precedence over the environment.  Framework settings, such as rewrites and redirects, live in `next.config.ts`.  `src/lib/scrapers.ts` sets the scraper's User-Agent inline.  Change it to your own URL if you run a copy.
 
 ```typescript
 // src/lib/scrapers.ts
@@ -309,7 +297,7 @@ Choose Claude on the Settings page, or set `LLM_PROVIDER=anthropic` and `ANTHROP
 |---|---|
 | **Model** | `claude-opus-5-5` by default, or `claude-sonnet-5-5`, from the Settings page or `ANTHROPIC_MODEL` |
 | **Effort** | `low` by default, from the Settings page or `ANTHROPIC_EFFORT`, because a brief is short |
-| **Output** | Structured outputs with a JSON schema for the brief.  The reply is validated before it is stored |
+| **Output** | Structured outputs with a JSON schema for the brief.  The app validates the reply before storing it |
 | **Input** | The unified diff between the two versions, cut at 12,000 characters |
 | **Limits** | 16,000 output tokens, a 120-second timeout, and the SDK's two retries for HTTP 408, 409, 429 and 5xx |
 | **Fallbacks** | Server-side fallbacks are on.  If Claude's safeguards decline a request, the API re-runs it on the model Anthropic recommends for that kind of refusal, and the brief records which model wrote it |
@@ -320,7 +308,7 @@ ANTHROPIC_API_KEY=sk-ant-... LLM_PROVIDER=anthropic npm run dev
 ```
 
 > [!NOTE]
-> No live Claude call has been run from this repository yet.  The tests run against a mocked API, so the quality and cost of real briefs are not yet measured.  At list prices Claude Opus 5.5 costs $4 per million input tokens and $20 per million output tokens.
+> I have not yet run a live Claude call from this repository.  The tests run against a mocked API, so I have not measured the quality or cost of real briefs.  At list prices Claude Opus 5.5 costs $4 per million input tokens and $20 per million output tokens.
 
 ### Adding a jurisdiction
 
@@ -343,7 +331,7 @@ A crontab entry that checks at 7am on weekdays and posts to Slack:
 0 7 * * 1-5  cd /path/to/legislation-monitor && DIGEST_WEBHOOK_URL=https://hooks.slack.com/services/... npm run check-all >> .data/check-all.log 2>&1
 ```
 
-A GitHub Actions workflow that does the same on GitHub's runners.  The database lives in the Actions cache between runs, which GitHub evicts after seven days without use, so treat it as a convenience rather than durable storage.
+A GitHub Actions workflow that does the same on GitHub's runners.  The database lives in the Actions cache between runs, which GitHub evicts after seven days without use, so do not rely on it as durable storage.
 
 ```yaml
 name: Check legislation
@@ -376,7 +364,7 @@ jobs:
           key: legislation-db-${{ github.run_id }}
 ```
 
-A smoke run of `npm run check-all` in a sandbox that cannot reach the registers reported all seven seeded Acts as failed, stored nothing, posted the digest to a local test webhook, and exited with status 1.  No run against the live registers has been recorded.
+A smoke run of `npm run check-all` in a sandbox that cannot reach the registers reported all seven seeded Acts as failed, stored nothing, posted the digest to a local test webhook, and exited with status 1.  I have not recorded a run against the live registers.
 
 The app also keeps a pending-changes counter.  `GET /api/changes/count` returns the number of changes recorded since someone last acknowledged them, and `POST /api/changes/ack` resets it.
 
@@ -393,8 +381,6 @@ The app also keeps a pending-changes counter.  `GET /api/changes/count` returns 
 | **Change briefs** | [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) for Claude, or any OpenAI-compatible endpoint |
 | **API docs** | [Swagger UI](https://github.com/swagger-api/swagger-ui) |
 | **Tests** | [Vitest](https://vitest.dev/) |
-
-<br>
 
 ## Layout
 
@@ -437,8 +423,6 @@ legislation-monitor/
   public/                   Static assets and openapi.json
   package.json
 ```
-
-<br>
 
 ## Licence
 
