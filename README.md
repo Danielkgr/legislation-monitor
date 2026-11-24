@@ -95,7 +95,7 @@ Each jurisdiction has its own scraper, tuned to the structure of its register.
 > [!CAUTION]
 > The URL handling and the compilation metadata patterns follow the registers' published link formats, and the tests cover them on synthetic HTML.  I have not yet run them against the live registers.  The [lex-au](https://github.com/cchew/lex-au) project reports that the Federal Register renders Act text in the browser from EPUB files.  If so, a plain HTML fetch of the latest-version page sees only the page shell, and changes would show up only when the shell's compilation details change.  Only a live run can confirm this.
 
-Both scrapers retry network errors, timeouts, HTTP 429 and 5xx responses twice, waiting 1 s and then 2 s, with a 30-second timeout on each attempt.  Other 4xx responses, such as 404, fail at once.  Both hash the normalised text with SHA-256 to detect change.
+Both scrapers retry network errors, timeouts, HTTP 408, 429 and 5xx responses twice, waiting 1 s and then 2 s, with a 30-second timeout on each attempt.  Other 4xx responses, such as 404, fail at once.  Both hash the normalised text with SHA-256 to detect change.
 
 ### Database
 
